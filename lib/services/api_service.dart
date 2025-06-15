@@ -1,0 +1,86 @@
+// lib/services/api_service.dart
+
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:ecocycle_app/models/dropbox.dart';
+import 'package:ecocycle_app/models/transaction.dart'; // <-- Tambahkan import ini
+
+class ApiService {
+  final String _baseUrl = 'http://10.0.2.2:8000/api';
+
+  // --- METHOD UNTUK DROPBOX ---
+  Future<List<Dropbox>> getDropboxes(String token) async {
+    final url = Uri.parse('$_baseUrl/dropboxes');
+    final response = await http.get(
+      url,
+      headers: {
+        'Accept': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      List<dynamic> body = json.decode(response.body);
+      List<Dropbox> dropboxes = body.map((dynamic item) => Dropbox.fromJson(item)).toList();
+      return dropboxes;
+    } else {
+      throw Exception('Failed to load dropboxes');
+    }
+  }
+
+  // --- METHOD BARU UNTUK ECOPAY ---
+  Future<Map<String, dynamic>> getWallet(String token) async {
+    final url = Uri.parse('$_baseUrl/wallet');
+    final response = await http.get(url, headers: {
+      'Accept': 'application/json',
+      'Authorization': 'Bearer $token',
+    });
+
+    if (response.statusCode == 200) {
+      return json.decode(response.body);
+    } else {
+      throw Exception('Failed to load wallet data');
+    }
+  }
+
+  Future<List<Transaction>> getTransactions(String token) async {
+    final url = Uri.parse('$_baseUrl/transactions');
+    final response = await http.get(url, headers: {
+      'Accept': 'application/json',
+      'Authorization': 'Bearer $token',
+    });
+
+    if (response.statusCode == 200) {
+      List<dynamic> body = json.decode(response.body);
+      return body.map((dynamic item) => Transaction.fromJson(item)).toList();
+    } else {
+      throw Exception('Failed to load transactions');
+    }
+  }
+
+  // ... di dalam class ApiService ...
+
+  Future<void> confirmScan(String token, {
+    required String dropboxCode,
+    required String wasteType,
+    required String weight,
+  }) async {
+    final url = Uri.parse('$_baseUrl/scans/confirm');
+    final response = await http.post(
+      url,
+      headers: {
+        'Accept': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: {
+        'dropbox_code': dropboxCode,
+        'waste_type': wasteType,
+        'weight': weight,
+      },
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception('Failed to confirm scan');
+    }
+  }
+}
