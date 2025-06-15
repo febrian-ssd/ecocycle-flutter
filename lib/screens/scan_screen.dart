@@ -1,5 +1,5 @@
 // lib/screens/scan_screen.dart
-
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:ecocycle_app/screens/konfirmasi_scan_screen.dart';
@@ -19,14 +19,12 @@ class _ScanScreenState extends State<ScanScreen> {
       setState(() {
         _isScanCompleted = true;
       });
-      // Pindah ke halaman konfirmasi dan kirim data hasil scan
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (context) => KonfirmasiScanScreen(qrCodeData: code),
+          builder: (context) => KonfirmasiScanScreen(qrCodeJsonData: code),
         ),
       ).then((_) {
-        // Reset status saat kembali ke halaman ini
         if (mounted) {
           setState(() {
             _isScanCompleted = false;
@@ -57,7 +55,6 @@ class _ScanScreenState extends State<ScanScreen> {
               }
             },
           ),
-          // UI overlay untuk bingkai scan
           Container(
             width: 250,
             height: 250,
@@ -66,17 +63,15 @@ class _ScanScreenState extends State<ScanScreen> {
               borderRadius: BorderRadius.circular(12),
             ),
           ),
-
-          // === TOMBOL SIMULASI UNTUK DEVELOPMENT ===
           Positioned(
             bottom: 50,
             child: ElevatedButton.icon(
               onPressed: () {
-                // Pura-pura berhasil scan kode "db0001"
-                _handleDetection('db0001');
+                final fakeQrJson = '{"id": "db0001", "location": "Medan Area", "weight_g": 12, "waste_type": "Plastic"}';
+                _handleDetection(fakeQrJson);
               },
               icon: const Icon(Icons.camera),
-              label: const Text('Simulasi Scan Berhasil'),
+              label: const Text('Simulasi Scan (12 gram)'),
               style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
             ),
           )
