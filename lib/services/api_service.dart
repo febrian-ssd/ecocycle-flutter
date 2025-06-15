@@ -6,7 +6,7 @@ import 'package:ecocycle_app/models/dropbox.dart';
 import 'package:ecocycle_app/models/transaction.dart';
 
 class ApiService {
-  final String _baseUrl = 'http://10.0.2.2:8000/api';
+  final String _baseUrl = 'https://ecocylce.my.id/api';
 
   // --- METHOD UNTUK DROPBOX & SCAN ---
   Future<List<Dropbox>> getDropboxes(String token) async {
