@@ -15,13 +15,23 @@ class AuthProvider with ChangeNotifier {
   User? get user => _user;
   bool get isLoggedIn => _token != null;
 
-  Future<void> login(String email, String password) async {
+ // Di dalam file lib/providers/auth_provider.dart
+
+Future<bool> login(String email, String password) async {
+  try {
     final response = await _apiService.login(email, password);
     _token = response['access_token'];
     _user = User.fromJson(response['user']);
     await _saveAuthData();
     notifyListeners();
+    return true;
+  } catch (e) {
+    // Ini adalah blok error yang sedang kita hadapi
+    // Kita akan tambahkan kode di sini, tapi di dalam ApiService
+    // agar lebih rapi.
+    rethrow;
   }
+}
 
   Future<void> register(String name, String email, String password) async {
     final response = await _apiService.register(name, email, password);

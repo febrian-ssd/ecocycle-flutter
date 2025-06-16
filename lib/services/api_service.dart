@@ -12,21 +12,35 @@ class ApiService {
   // final String _baseUrl = 'http://10.0.2.2:8000/api';
 
   // --- METHOD OTENTIKASI ---
-  Future<Map<String, dynamic>> login(String email, String password) async {
-    final url = Uri.parse('$_baseUrl/login');
-    final response = await http.post(
-      url,
-      headers: {'Accept': 'application/json'},
-      body: {'email': email, 'password': password},
-    );
+  // Di dalam file lib/services/api_service.dart
 
-    if (response.statusCode == 200) {
-      return json.decode(response.body);
-    } else {
-      final responseData = json.decode(response.body);
-      throw Exception(responseData['message'] ?? 'Login failed.');
+Future<Map<String, dynamic>> login(String email, String password) async {
+  final url = Uri.parse('$_baseUrl/login');
+  final response = await http.post(
+    url,
+    headers: {'Accept': 'application/json'},
+    body: {'email': email, 'password': password},
+  );
+
+  // === BAGIAN UNTUK DEBUGGING ===
+  print('Status Code: ${response.statusCode}');
+  print('Response Body: ${response.body}');
+  // ==============================
+
+  if (response.statusCode == 200) {
+    // Jika berhasil, lanjutkan seperti biasa
+    return json.decode(response.body);
+  } else {
+    // Jika gagal, coba decode atau lempar error mentah
+    try {
+       final responseData = json.decode(response.body);
+       throw Exception(responseData['message'] ?? 'Login failed.');
+    } on FormatException {
+      // Ini terjadi jika responsnya bukan JSON (misal: halaman error HTML)
+      throw Exception('Server returned an invalid response. Check server logs.');
     }
   }
+}
 
   Future<Map<String, dynamic>> register(String name, String email, String password) async {
     final url = Uri.parse('$_baseUrl/register');
