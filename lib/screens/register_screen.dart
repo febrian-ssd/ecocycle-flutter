@@ -1,8 +1,8 @@
 // lib/screens/register_screen.dart
 
 import 'package:flutter/material.dart';
-import 'package:ecocycle_app/services/mock_auth_service.dart';
-import 'package:ecocycle_app/screens/home_screen.dart';
+import 'package:provider/provider.dart';
+import 'package:ecocycle_app/providers/auth_provider.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -15,26 +15,50 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  final MockAuthService _authService = MockAuthService();
   bool _isLoading = false;
 
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
   Future<void> _register() async {
+    // Validasi sederhana agar tidak mengirim data kosong
+    if (_nameController.text.isEmpty || _emailController.text.isEmpty || _passwordController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(backgroundColor: Colors.red, content: Text('Semua field wajib diisi.')),
+      );
+      return;
+    }
+
     setState(() => _isLoading = true);
     try {
-      await _authService.register(
-        _nameController.text,
-        _emailController.text,
-        _passwordController.text,
+      // Panggil fungsi register dari AuthProvider
+      await Provider.of<AuthProvider>(context, listen: false).register(
+        name: _nameController.text,
+        email: _emailController.text,
+        password: _passwordController.text,
       );
+
+      // Jika baris di atas berhasil tanpa error, artinya registrasi sukses.
+      // Kita tidak perlu navigasi ke HomeScreen secara manual.
+      // Cukup tutup semua halaman di atas AuthWrapper.
       if (mounted) {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (context) => const HomeScreen()),
-        );
+        // Perintah ini akan menutup semua halaman (register, login) sampai ke halaman paling dasar.
+        // Saat itu terjadi, AuthWrapper akan otomatis menampilkan HomeScreen karena status login sudah berubah.
+        Navigator.of(context).popUntil((route) => route.isFirst);
       }
+      
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(backgroundColor: Colors.red, content: Text(e.toString().replaceFirst('Exception: ', ''))),
+          SnackBar(
+            backgroundColor: Colors.red,
+            content: Text(e.toString().replaceFirst("Exception: ", "")),
+          ),
         );
       }
     } finally {
@@ -49,6 +73,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFF424242),
       appBar: AppBar(
+        title: const Text('Register'),
         backgroundColor: Colors.transparent,
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.white),
@@ -59,13 +84,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-               const Text('Create Account', style: TextStyle(color: Colors.green, fontSize: 32, fontWeight: FontWeight.bold)),
+               const Text('Create Account', style: TextStyle(color: Color(0xFF00BFA5), fontSize: 32, fontWeight: FontWeight.bold)),
                const SizedBox(height: 50),
-               _buildTextField(controller: _nameController, hint: 'Full Name', icon: Icons.person),
+               _buildTextField(controller: _nameController, hint: 'Full Name', icon: Icons.person, textInputType: TextInputType.name),
                const SizedBox(height: 20),
-               _buildTextField(controller: _emailController, hint: 'Email', icon: Icons.email),
+               _buildTextField(controller: _emailController, hint: 'Email', icon: Icons.email, textInputType: TextInputType.emailAddress),
                const SizedBox(height: 20),
-               _buildTextField(controller: _passwordController, hint: 'Password', icon: Icons.lock, obscureText: true),
+               _buildTextField(controller: _passwordController, hint: 'Password (min. 8 karakter)', icon: Icons.lock, obscureText: true),
                const SizedBox(height: 30),
               SizedBox(
                 width: double.infinity,
@@ -87,13 +112,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
       ),
     );
   }
-
-  Widget _buildTextField({required TextEditingController controller, required String hint, required IconData icon, bool obscureText = false}) {
+  
+  Widget _buildTextField({required TextEditingController controller, required String hint, required IconData icon, bool obscureText = false, TextInputType textInputType = TextInputType.text}) {
     return TextField(
       controller: controller,
       obscureText: obscureText,
+      keyboardType: textInputType,
       style: const TextStyle(color: Colors.white),
       decoration: InputDecoration(
+        hintText: hint,
+        hintStyle: TextStyle(color: Colors.grey[400]),
         prefixIcon: Icon(icon, color: Colors.grey[400]),
         filled: true,
         fillColor: Colors.grey[800],

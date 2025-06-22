@@ -9,31 +9,25 @@ import 'package:ecocycle_app/services/api_service.dart';
 class AuthProvider with ChangeNotifier {
   String? _token;
   User? _user;
-  final ApiService _apiService = ApiService(); // Gunakan ApiService asli
+  final ApiService _apiService = ApiService();
 
   String? get token => _token;
   User? get user => _user;
   bool get isLoggedIn => _token != null;
 
- // Di dalam file lib/providers/auth_provider.dart
-
-Future<bool> login(String email, String password) async {
-  try {
+  Future<void> login(String email, String password) async {
     final response = await _apiService.login(email, password);
     _token = response['access_token'];
     _user = User.fromJson(response['user']);
     await _saveAuthData();
     notifyListeners();
-    return true;
-  } catch (e) {
-    // Ini adalah blok error yang sedang kita hadapi
-    // Kita akan tambahkan kode di sini, tapi di dalam ApiService
-    // agar lebih rapi.
-    rethrow;
   }
-}
 
-  Future<void> register(String name, String email, String password) async {
+  Future<void> register({
+    required String name,
+    required String email,
+    required String password,
+  }) async {
     final response = await _apiService.register(name, email, password);
     _token = response['access_token'];
     _user = User.fromJson(response['user']);
@@ -63,6 +57,8 @@ Future<bool> login(String email, String password) async {
     _token = prefs.getString('token');
     _user = User.fromJson(json.decode(prefs.getString('user')!));
     notifyListeners();
-    return true;
+    
+    // === INI BARIS YANG HILANG DAN MENYEBABKAN ERROR ===
+    return true; 
   }
 }

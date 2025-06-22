@@ -133,17 +133,21 @@ Future<Map<String, dynamic>> login(String email, String password) async {
     }
   }
   
-  Future<void> topup(String token, int amount) async {
-    final url = Uri.parse('$_baseUrl/topup');
+  // Ganti isi method 'topup' dengan 'requestTopup'
+  Future<String> requestTopup(String token, int amount) async {
+    final url = Uri.parse('$_baseUrl/topup-request');
     final response = await http.post(
       url,
       headers: {'Accept': 'application/json', 'Authorization': 'Bearer $token'},
       body: {'amount': amount.toString()},
     );
+    final responseData = json.decode(response.body);
     if (response.statusCode != 200) {
-      throw Exception('Failed to top up balance');
+      throw Exception(responseData['message'] ?? 'Failed to request top up');
     }
+    return responseData['message'];
   }
+// Hapus method 'topup' yang lama jika ada
 
   Future<void> transfer(String token, {required int amount, required String destination}) async {
     final url = Uri.parse('$_baseUrl/transfer');

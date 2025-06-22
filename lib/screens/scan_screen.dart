@@ -1,5 +1,5 @@
 // lib/screens/scan_screen.dart
-import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:ecocycle_app/screens/konfirmasi_scan_screen.dart';
@@ -67,6 +67,7 @@ class _ScanScreenState extends State<ScanScreen> {
             bottom: 50,
             child: ElevatedButton.icon(
               onPressed: () {
+                // DATA JSON PALSU UNTUK SIMULASI
                 final fakeQrJson = '{"id": "db0001", "location": "Medan Area", "weight_g": 12, "waste_type": "Plastic"}';
                 _handleDetection(fakeQrJson);
               },
