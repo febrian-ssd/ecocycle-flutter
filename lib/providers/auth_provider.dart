@@ -13,14 +13,25 @@ class AuthProvider with ChangeNotifier {
 
   String? get token => _token;
   User? get user => _user;
-  bool get isLoggedIn => _token != null;
+  bool get isLoggedIn => _token != null && _user != null;
 
   Future<void> login(String email, String password) async {
-    final response = await _apiService.login(email, password);
-    _token = response['access_token'];
-    _user = User.fromJson(response['user']);
-    await _saveAuthData();
-    notifyListeners();
+    try {
+      final response = await _apiService.login(email, password);
+      _token = response['access_token'];
+      _user = User.fromJson(response['user']);
+      await _saveAuthData();
+      notifyListeners();
+    } catch (e) {
+      // Re-throw dengan pesan yang lebih user-friendly
+      if (e.toString().contains('credentials do not match')) {
+        throw Exception('Email atau password salah');
+      } else if (e.toString().contains('Network error')) {
+        throw Exception('Tidak dapat terhubung ke server');
+      } else {
+        throw Exception('Login gagal: ${e.toString().replaceFirst('Exception: ', '')}');
+      }
+    }
   }
 
   Future<void> register({
@@ -28,19 +39,41 @@ class AuthProvider with ChangeNotifier {
     required String email,
     required String password,
   }) async {
-    final response = await _apiService.register(name, email, password);
-    _token = response['access_token'];
-    _user = User.fromJson(response['user']);
-    await _saveAuthData();
-    notifyListeners();
+    try {
+      final response = await _apiService.register(name, email, password);
+      _token = response['access_token'];
+      _user = User.fromJson(response['user']);
+      await _saveAuthData();
+      notifyListeners();
+    } catch (e) {
+      // Re-throw dengan pesan yang lebih user-friendly
+      if (e.toString().contains('email has already been taken')) {
+        throw Exception('Email sudah digunakan');
+      } else if (e.toString().contains('Network error')) {
+        throw Exception('Tidak dapat terhubung ke server');
+      } else {
+        throw Exception('Registrasi gagal: ${e.toString().replaceFirst('Exception: ', '')}');
+      }
+    }
   }
 
   Future<void> logout() async {
-    _token = null;
-    _user = null;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.clear();
-    notifyListeners();
+    try {
+      // Panggil API logout jika ada token
+      if (_token != null) {
+        await _apiService.logout(_token!);
+      }
+    } catch (e) {
+      // Jika API logout gagal, tetap lanjutkan logout lokal
+      debugPrint('Logout API failed: $e');
+    } finally {
+      // Hapus data lokal
+      _token = null;
+      _user = null;
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.clear();
+      notifyListeners();
+    }
   }
 
   Future<void> _saveAuthData() async {
@@ -50,15 +83,58 @@ class AuthProvider with ChangeNotifier {
   }
 
   Future<bool> tryAutoLogin() async {
-    final prefs = await SharedPreferences.getInstance();
-    if (!prefs.containsKey('token') || !prefs.containsKey('user')) {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      
+      if (!prefs.containsKey('token') || !prefs.containsKey('user')) {
+        return false;
+      }
+      
+      final token = prefs.getString('token');
+      final userJson = prefs.getString('user');
+      
+      if (token == null || userJson == null) {
+        return false;
+      }
+
+      // Verify token dengan server
+      try {
+        final userInfo = await _apiService.getUserInfo(token);
+        _token = token;
+        _user = User.fromJson(userInfo);
+        notifyListeners();
+        return true;
+      } catch (e) {
+        // Token tidak valid, hapus data lokal
+        await prefs.clear();
+        return false;
+      }
+    } catch (e) {
+      debugPrint('Auto login error: $e');
       return false;
     }
-    _token = prefs.getString('token');
-    _user = User.fromJson(json.decode(prefs.getString('user')!));
-    notifyListeners();
+  }
+
+  // Method untuk refresh user data
+  Future<void> refreshUserData() async {
+    if (_token == null) return;
     
-    // === INI BARIS YANG HILANG DAN MENYEBABKAN ERROR ===
-    return true; 
+    try {
+      final userInfo = await _apiService.getUserInfo(_token!);
+      _user = User.fromJson(userInfo);
+      await _saveAuthData();
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Refresh user data error: $e');
+    }
+  }
+
+  // Method untuk update user info lokal (misalnya setelah transfer/tukar koin)
+  void updateLocalBalance({double? balanceRp, int? balanceCoins}) {
+    if (_user == null) return;
+    
+    // Note: Karena User model tidak memiliki balance fields,
+    // kita hanya refresh dari server untuk data terbaru
+    refreshUserData();
   }
 }
