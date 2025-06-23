@@ -1,17 +1,23 @@
+// lib/services/api_service.dart - DEBUG RESPONSE VERSION
 import 'dart:convert';
 import 'dart:io';
+import 'dart:async';
 import 'package:http/http.dart' as http;
+import 'package:flutter/material.dart';
 import 'package:ecocycle_app/models/transaction.dart';
 import 'package:ecocycle_app/utils/conversion_utils.dart';
 
 class ApiService {
-  static const String _baseUrl = 'http://192.168.1.100:8000/api';
+  static const String _baseUrl = 'https://ecocylce.my.id/api';
+  static const String _fallbackUrl = 'http://ecocylce.my.id/api';
+  
+  static const Duration _timeout = Duration(seconds: 30);
 
-  // Headers dengan Content-Type JSON
   Map<String, String> _getHeaders({String? token}) {
     final headers = <String, String>{
       'Content-Type': 'application/json',
       'Accept': 'application/json',
+      'User-Agent': 'EcoCycle-Flutter-App/1.0',
     };
     
     if (token != null) {
@@ -21,37 +27,230 @@ class ApiService {
     return headers;
   }
 
-  // Wrapper untuk request dengan error handling
   Future<http.Response> _makeRequest(Future<http.Response> Function() request) async {
     try {
-      return await request();
-    } on SocketException {
-      throw Exception('Tidak ada koneksi internet');
-    } on HttpException {
-      throw Exception('Gagal terhubung ke server');
+      debugPrint('🌐 Making HTTP request...');
+      final response = await request().timeout(_timeout);
+      debugPrint('🌐 HTTP response received: ${response.statusCode}');
+      debugPrint('🌐 Response headers: ${response.headers}');
+      debugPrint('🌐 Response body length: ${response.body.length}');
+      
+      // ENHANCED: Log full response body for debugging
+      debugPrint('📝 Full response body: ${response.body}');
+      
+      return response;
+    } on TimeoutException catch (e) {
+      debugPrint('❌ TimeoutException: $e');
+      throw Exception('Koneksi timeout. Periksa koneksi internet Anda.');
+    } on SocketException catch (e) {
+      debugPrint('❌ SocketException: $e');
+      throw Exception('Tidak ada koneksi internet. Periksa koneksi Anda.');
+    } on HttpException catch (e) {
+      debugPrint('❌ HttpException: $e');
+      throw Exception('Gagal terhubung ke server. Coba lagi nanti.');
     } catch (e) {
+      debugPrint('❌ General Exception: $e');
       throw Exception('Terjadi kesalahan: $e');
     }
   }
 
-  // Handle response dengan error checking
   Map<String, dynamic> _handleResponse(http.Response response) {
+    debugPrint('🔍 Handling response: ${response.statusCode}');
+    debugPrint('🔍 Response URL: ${response.request?.url}');
+    
     if (response.statusCode >= 200 && response.statusCode < 300) {
-      final responseData = json.decode(response.body);
-      return responseData is Map<String, dynamic> ? responseData : {'data': responseData};
+      try {
+        final responseData = json.decode(response.body);
+        debugPrint('✅ Response parsed successfully');
+        debugPrint('📊 Response data type: ${responseData.runtimeType}');
+        debugPrint('📊 Response keys: ${responseData is Map ? responseData.keys : 'Not a Map'}');
+        
+        // ENHANCED: Log specific fields we're looking for
+        if (responseData is Map<String, dynamic>) {
+          debugPrint('🔍 Token in response: ${responseData.containsKey('token')}');
+          debugPrint('🔍 User in response: ${responseData.containsKey('user')}');
+          debugPrint('🔍 Data in response: ${responseData.containsKey('data')}');
+          debugPrint('🔍 Access_token in response: ${responseData.containsKey('access_token')}');
+          debugPrint('🔍 Success in response: ${responseData.containsKey('success')}');
+          debugPrint('🔍 Message in response: ${responseData.containsKey('message')}');
+          
+          // Check if token is in nested data
+          if (responseData.containsKey('data') && responseData['data'] is Map) {
+            final data = responseData['data'] as Map<String, dynamic>;
+            debugPrint('🔍 Token in data: ${data.containsKey('token')}');
+            debugPrint('🔍 User in data: ${data.containsKey('user')}');
+            debugPrint('🔍 Access_token in data: ${data.containsKey('access_token')}');
+          }
+          
+          return responseData;
+        } else {
+          return {'data': responseData};
+        }
+      } catch (e) {
+        debugPrint('❌ Failed to parse JSON: $e');
+        debugPrint('📝 Raw response: ${response.body}');
+        throw Exception('Response server tidak valid (bukan JSON)');
+      }
     } else {
-      final errorData = json.decode(response.body);
-      throw Exception(errorData['message'] ?? 'Terjadi kesalahan server');
+      debugPrint('❌ HTTP Error: ${response.statusCode}');
+      debugPrint('📝 Error body: ${response.body}');
+      
+      try {
+        final errorData = json.decode(response.body);
+        String errorMessage = errorData['message'] ?? 'Terjadi kesalahan server';
+        
+        switch (response.statusCode) {
+          case 401:
+            errorMessage = 'Email atau password salah';
+            break;
+          case 422:
+            errorMessage = errorData['message'] ?? 'Data tidak valid';
+            // Log validation errors if present
+            if (errorData['errors'] != null) {
+              debugPrint('📝 Validation errors: ${errorData['errors']}');
+            }
+            break;
+          case 500:
+            errorMessage = 'Server sedang bermasalah. Coba lagi nanti.';
+            break;
+        }
+        
+        throw Exception(errorMessage);
+      } catch (e) {
+        if (e.toString().startsWith('Exception:')) {
+          rethrow;
+        }
+        throw Exception('Server error (${response.statusCode})');
+      }
     }
   }
 
   // AUTH ENDPOINTS
+  Future<Map<String, dynamic>> login({
+    required String email,
+    required String password,
+  }) async {
+    debugPrint('🔐 Logging in user: $email');
+    
+    final requestBody = {
+      'email': email,
+      'password': password,
+    };
+    
+    debugPrint('📤 Login request body: $requestBody');
+    
+    // Try HTTPS first
+    try {
+      final url = Uri.parse('$_baseUrl/login');
+      debugPrint('🌐 Trying HTTPS login: $url');
+      
+      final response = await _makeRequest(() => http.post(
+        url,
+        headers: _getHeaders(),
+        body: json.encode(requestBody),
+      ));
+
+      final result = _handleResponse(response);
+      debugPrint('✅ HTTPS login response processed');
+      
+      // ENHANCED: Handle different response formats
+      return _normalizeLoginResponse(result);
+      
+    } catch (e) {
+      debugPrint('❌ HTTPS login failed: $e');
+      
+      // Try HTTP fallback
+      if (e.toString().contains('301') || e.toString().contains('302')) {
+        debugPrint('🔄 Trying HTTP fallback due to redirect...');
+        
+        try {
+          final fallbackUrl = Uri.parse('$_fallbackUrl/login');
+          debugPrint('🌐 Trying HTTP login: $fallbackUrl');
+          
+          final response = await _makeRequest(() => http.post(
+            fallbackUrl,
+            headers: _getHeaders(),
+            body: json.encode(requestBody),
+          ));
+
+          final result = _handleResponse(response);
+          debugPrint('✅ HTTP fallback login response processed');
+          
+          return _normalizeLoginResponse(result);
+          
+        } catch (fallbackError) {
+          debugPrint('❌ HTTP fallback also failed: $fallbackError');
+          rethrow;
+        }
+      } else {
+        rethrow;
+      }
+    }
+  }
+
+  // ENHANCED: Normalize different login response formats
+  Map<String, dynamic> _normalizeLoginResponse(Map<String, dynamic> response) {
+    debugPrint('🔧 Normalizing login response...');
+    debugPrint('📊 Original response: $response');
+    
+    String? token;
+    Map<String, dynamic>? user;
+    
+    // Check various possible token locations
+    if (response['token'] != null) {
+      token = response['token'].toString();
+      debugPrint('✅ Found token in root');
+    } else if (response['access_token'] != null) {
+      token = response['access_token'].toString();
+      debugPrint('✅ Found access_token in root');
+    } else if (response['data'] != null && response['data'] is Map) {
+      final data = response['data'] as Map<String, dynamic>;
+      if (data['token'] != null) {
+        token = data['token'].toString();
+        debugPrint('✅ Found token in data');
+      } else if (data['access_token'] != null) {
+        token = data['access_token'].toString();
+        debugPrint('✅ Found access_token in data');
+      }
+    }
+    
+    // Check various possible user locations
+    if (response['user'] != null) {
+      user = response['user'] is Map<String, dynamic> 
+          ? response['user'] 
+          : Map<String, dynamic>.from(response['user']);
+      debugPrint('✅ Found user in root');
+    } else if (response['data'] != null && response['data'] is Map) {
+      final data = response['data'] as Map<String, dynamic>;
+      if (data['user'] != null) {
+        user = data['user'] is Map<String, dynamic> 
+            ? data['user'] 
+            : Map<String, dynamic>.from(data['user']);
+        debugPrint('✅ Found user in data');
+      }
+    }
+    
+    debugPrint('🔍 Final extracted token: ${token?.substring(0, 20)}...');
+    debugPrint('🔍 Final extracted user: ${user?.keys}');
+    
+    // Return normalized format
+    final normalized = {
+      'token': token,
+      'user': user,
+      'original_response': response, // Keep original for debugging
+    };
+    
+    debugPrint('📦 Normalized response: ${normalized.keys}');
+    return normalized;
+  }
+
   Future<Map<String, dynamic>> register({
     required String name,
     required String email,
     required String password,
     required String passwordConfirmation,
   }) async {
+    debugPrint('📝 Registering user: $email');
     final url = Uri.parse('$_baseUrl/register');
     
     final response = await _makeRequest(() => http.post(
@@ -65,38 +264,25 @@ class ApiService {
       }),
     ));
 
-    return _handleResponse(response);
-  }
-
-  Future<Map<String, dynamic>> login({
-    required String email,
-    required String password,
-  }) async {
-    final url = Uri.parse('$_baseUrl/login');
-    
-    final response = await _makeRequest(() => http.post(
-      url,
-      headers: _getHeaders(),
-      body: json.encode({
-        'email': email,
-        'password': password,
-      }),
-    ));
-
-    return _handleResponse(response);
+    final result = _handleResponse(response);
+    return _normalizeLoginResponse(result); // Use same normalization for register
   }
 
   Future<void> logout(String token) async {
+    debugPrint('🚪 Logging out user');
     final url = Uri.parse('$_baseUrl/logout');
     
     await _makeRequest(() => http.post(
       url,
       headers: _getHeaders(token: token),
     ));
+    
+    debugPrint('✅ Logout successful');
   }
 
   // USER PROFILE
   Future<Map<String, dynamic>> getProfile(String token) async {
+    debugPrint('👤 Getting user profile');
     final url = Uri.parse('$_baseUrl/profile');
     
     final response = await _makeRequest(() => http.get(
@@ -112,6 +298,7 @@ class ApiService {
     String? email,
     String? password,
   }) async {
+    debugPrint('✏️ Updating user profile');
     final url = Uri.parse('$_baseUrl/profile');
     
     final body = <String, dynamic>{};
@@ -130,6 +317,7 @@ class ApiService {
 
   // DROPBOX ENDPOINTS
   Future<List<Map<String, dynamic>>> getDropboxes(String token) async {
+    debugPrint('📍 Getting dropboxes');
     final url = Uri.parse('$_baseUrl/dropboxes');
     
     final response = await _makeRequest(() => http.get(
@@ -145,6 +333,7 @@ class ApiService {
 
   // SCAN ENDPOINTS
   Future<Map<String, dynamic>> scanQR(String token, String qrCode) async {
+    debugPrint('📱 Scanning QR code');
     final url = Uri.parse('$_baseUrl/scan');
     
     final response = await _makeRequest(() => http.post(
@@ -163,6 +352,7 @@ class ApiService {
     required String wasteType,
     required double weight,
   }) async {
+    debugPrint('✅ Confirming scan');
     final url = Uri.parse('$_baseUrl/scan/confirm');
     
     final response = await _makeRequest(() => http.post(
@@ -180,6 +370,7 @@ class ApiService {
 
   // HISTORY ENDPOINTS
   Future<List<Map<String, dynamic>>> getHistory(String token) async {
+    debugPrint('📜 Getting history');
     final url = Uri.parse('$_baseUrl/history');
     
     final response = await _makeRequest(() => http.get(
@@ -195,6 +386,7 @@ class ApiService {
 
   // ECOPAY/WALLET ENDPOINTS
   Future<Map<String, dynamic>> getWallet(String token) async {
+    debugPrint('💰 Getting wallet data');
     final url = Uri.parse('$_baseUrl/wallet');
     
     final response = await _makeRequest(() => http.get(
@@ -204,7 +396,6 @@ class ApiService {
     
     final responseData = _handleResponse(response);
     
-    // Safe conversion using ConversionUtils
     return {
       'balance_rp': ConversionUtils.toDouble(responseData['balance_rp']),
       'balance_coins': ConversionUtils.toInt(responseData['balance_coins']),
@@ -213,6 +404,7 @@ class ApiService {
   }
 
   Future<List<Transaction>> getTransactions(String token) async {
+    debugPrint('📊 Getting transactions');
     final url = Uri.parse('$_baseUrl/transactions');
     
     final response = await _makeRequest(() => http.get(
@@ -233,6 +425,7 @@ class ApiService {
     required double amount,
     String? description,
   }) async {
+    debugPrint('💸 Making transfer');
     final url = Uri.parse('$_baseUrl/transfer');
     
     final response = await _makeRequest(() => http.post(
@@ -251,6 +444,7 @@ class ApiService {
   Future<Map<String, dynamic>> exchangeCoins(String token, {
     required int coins,
   }) async {
+    debugPrint('🔄 Exchanging coins');
     final url = Uri.parse('$_baseUrl/exchange-coins');
     
     final response = await _makeRequest(() => http.post(
@@ -268,6 +462,7 @@ class ApiService {
     required double amount,
     required String method,
   }) async {
+    debugPrint('📈 Creating topup request');
     final url = Uri.parse('$_baseUrl/topup-request');
     
     final response = await _makeRequest(() => http.post(
@@ -283,6 +478,7 @@ class ApiService {
   }
 
   Future<List<Map<String, dynamic>>> getTopupRequests(String token) async {
+    debugPrint('📋 Getting topup requests');
     final url = Uri.parse('$_baseUrl/topup-requests');
     
     final response = await _makeRequest(() => http.get(
@@ -296,12 +492,12 @@ class ApiService {
     return requests.cast<Map<String, dynamic>>();
   }
 
-  // UPLOAD PAYMENT PROOF
   Future<Map<String, dynamic>> uploadPaymentProof(
     String token, 
     int topupRequestId, 
     File imageFile
   ) async {
+    debugPrint('📤 Uploading payment proof');
     final url = Uri.parse('$_baseUrl/topup-request/$topupRequestId/upload-proof');
     
     final request = http.MultipartRequest('POST', url);

@@ -4,12 +4,14 @@ import 'package:ecocycle_app/providers/auth_provider.dart';
 import 'package:ecocycle_app/services/api_service.dart';
 import 'package:ecocycle_app/utils/conversion_utils.dart';
 
-class TopupScreen extends StatefulWidget {
+class IsiSaldoScreen extends StatefulWidget {
+  const IsiSaldoScreen({super.key}); // FIXED: Added const constructor
+
   @override
-  _TopupScreenState createState() => _TopupScreenState();
+  State<IsiSaldoScreen> createState() => _IsiSaldoScreenState(); // FIXED: Changed state class name
 }
 
-class _TopupScreenState extends State<TopupScreen> {
+class _IsiSaldoScreenState extends State<IsiSaldoScreen> { // FIXED: Changed class name
   final ApiService _apiService = ApiService();
   final _formKey = GlobalKey<FormState>();
   final _amountController = TextEditingController();
@@ -144,16 +146,16 @@ class _TopupScreenState extends State<TopupScreen> {
       margin: const EdgeInsets.all(16),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.1),
+        color: Colors.white.withValues(alpha: 0.1), // FIXED: withValues
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.2)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)), // FIXED: withValues
       ),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
+              color: Colors.white.withValues(alpha: 0.2), // FIXED: withValues
               borderRadius: BorderRadius.circular(12),
             ),
             child: const Icon(
@@ -380,7 +382,7 @@ class _TopupScreenState extends State<TopupScreen> {
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFF2E7D32).withOpacity(0.1) : Colors.white,
+          color: isSelected ? const Color(0xFF2E7D32).withValues(alpha: 0.1) : Colors.white, // FIXED: withValues
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: isSelected ? const Color(0xFF2E7D32) : Colors.grey[300]!,

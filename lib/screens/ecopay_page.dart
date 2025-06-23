@@ -5,14 +5,14 @@ import 'package:ecocycle_app/services/api_service.dart';
 import 'package:ecocycle_app/models/transaction.dart';
 import 'package:ecocycle_app/screens/transfer_screen.dart';
 import 'package:ecocycle_app/screens/tukar_koin_screen.dart';
-import 'package:ecocycle_app/screens/isi_saldo_screen.dart'; // FIXED: Changed to isi_saldo_screen
+import 'package:ecocycle_app/screens/isi_saldo_screen.dart'; // FIXED: Use isi_saldo_screen
 import 'package:ecocycle_app/utils/conversion_utils.dart';
 
 class EcoPayPage extends StatefulWidget {
-  const EcoPayPage({Key? key}) : super(key: key); // FIXED: Added Key parameter
+  const EcoPayPage({super.key}); // FIXED: Added super.key
 
   @override
-  State<EcoPayPage> createState() => _EcoPayPageState(); // FIXED: Changed return type
+  State<EcoPayPage> createState() => _EcoPayPageState();
 }
 
 class _EcoPayPageState extends State<EcoPayPage> {

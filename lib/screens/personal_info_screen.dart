@@ -28,13 +28,21 @@ class PersonalInfoScreen extends StatelessWidget {
               ListTile(
                 leading: const Icon(Icons.person, color: Colors.white70),
                 title: const Text('Nama', style: TextStyle(color: Colors.white70)),
-                subtitle: Text(user?.name ?? 'Tidak ada data', style: const TextStyle(color: Colors.white, fontSize: 18)),
+                // FIXED: Access Map data correctly
+                subtitle: Text(
+                  user?['name'] ?? 'Tidak ada data', 
+                  style: const TextStyle(color: Colors.white, fontSize: 18)
+                ),
               ),
               const Divider(color: Colors.grey),
               ListTile(
                 leading: const Icon(Icons.email, color: Colors.white70),
                 title: const Text('Email', style: TextStyle(color: Colors.white70)),
-                subtitle: Text(user?.email ?? 'Tidak ada data', style: const TextStyle(color: Colors.white, fontSize: 18)),
+                // FIXED: Access Map data correctly
+                subtitle: Text(
+                  user?['email'] ?? 'Tidak ada data', 
+                  style: const TextStyle(color: Colors.white, fontSize: 18)
+                ),
               ),
             ],
           ),

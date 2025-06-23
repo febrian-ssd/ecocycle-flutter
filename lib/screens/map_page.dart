@@ -47,7 +47,11 @@ class MapPageState extends State<MapPage> {
         return;
       }
 
-      final dropboxes = await _apiService.getDropboxes(token);
+      final dropboxesData = await _apiService.getDropboxes(token);
+      
+      // FIXED: Convert Map to Dropbox objects properly
+      final dropboxes = dropboxesData.map((data) => Dropbox.fromJson(data)).toList();
+      
       if (mounted) {
         _updateMarkers(dropboxes);
       }

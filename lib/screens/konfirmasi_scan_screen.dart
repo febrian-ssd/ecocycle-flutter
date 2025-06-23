@@ -39,7 +39,7 @@ class _KonfirmasiScanScreenState extends State<KonfirmasiScanScreen> {
         _dropboxCode = data['id'] ?? 'N/A';
         _dropboxLocation = data['location'] ?? 'N/A';
         _wasteType = data['waste_type'] ?? 'N/A';
-        _weight = (data['weight_g'] as num).toDouble();
+        _weight = double.parse(data['weight_g'].toString()); // FIXED: Parse to double
         // Logika 1 gram = 10 koin
         _potentialCoins = (_weight * 10).floor();
       });
@@ -65,7 +65,7 @@ class _KonfirmasiScanScreenState extends State<KonfirmasiScanScreen> {
         token,
         dropboxCode: _dropboxCode,
         wasteType: _wasteType,
-        weight: _weight.toString(),
+        weight: _weight, // FIXED: Pass as double, not string
       );
 
       if (mounted) {
@@ -109,14 +109,14 @@ class _KonfirmasiScanScreenState extends State<KonfirmasiScanScreen> {
                   _buildInfoRow('Dropbox Code', _dropboxCode),
                   _buildInfoRow('Dropbox Location', _dropboxLocation),
                   _buildInfoRow('Waste Type', _wasteType),
-                  _buildInfoRow('Weight', '${_weight} g'),
+                  _buildInfoRow('Weight', '${_weight.toStringAsFixed(1)} g'), // FIXED: Better formatting
                 ],
               ),
             ),
             const SizedBox(height: 20),
             // Tampilan koin yang akan didapat
             Text(
-              'Anda akan mendapatkan: $_potentialCoins koin',
+              'Anda akan mendapatkan: $_potentialCoins koin', // FIXED: Remove unnecessary braces
               style: const TextStyle(color: Colors.amber, fontSize: 16, fontWeight: FontWeight.bold),
             ),
             const Spacer(),

@@ -5,8 +5,10 @@ import 'package:ecocycle_app/services/api_service.dart';
 import 'package:ecocycle_app/utils/conversion_utils.dart';
 
 class TransferScreen extends StatefulWidget {
+  const TransferScreen({super.key}); // FIXED: Added const constructor
+
   @override
-  _TransferScreenState createState() => _TransferScreenState();
+  State<TransferScreen> createState() => _TransferScreenState();
 }
 
 class _TransferScreenState extends State<TransferScreen> {
@@ -150,16 +152,16 @@ class _TransferScreenState extends State<TransferScreen> {
       margin: const EdgeInsets.all(16),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.1),
+        color: Colors.white.withValues(alpha: 0.1), // FIXED: withValues
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.2)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)), // FIXED: withValues
       ),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
+              color: Colors.white.withValues(alpha: 0.2), // FIXED: withValues
               borderRadius: BorderRadius.circular(12),
             ),
             child: const Icon(

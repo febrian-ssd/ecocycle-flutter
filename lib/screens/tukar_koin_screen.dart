@@ -5,8 +5,10 @@ import 'package:ecocycle_app/services/api_service.dart';
 import 'package:ecocycle_app/utils/conversion_utils.dart';
 
 class TukarKoinScreen extends StatefulWidget {
+  const TukarKoinScreen({super.key});
+
   @override
-  _TukarKoinScreenState createState() => _TukarKoinScreenState();
+  State<TukarKoinScreen> createState() => _TukarKoinScreenState();
 }
 
 class _TukarKoinScreenState extends State<TukarKoinScreen> {
@@ -16,7 +18,7 @@ class _TukarKoinScreenState extends State<TukarKoinScreen> {
   
   bool _isLoading = false;
   int _currentCoins = 0;
-  double _currentBalance = 0.0;
+  // FIXED: Removed unused field _currentBalance
   static const int _exchangeRate = 100; // 1 coin = Rp 100
 
   @override
@@ -40,7 +42,7 @@ class _TukarKoinScreenState extends State<TukarKoinScreen> {
         final walletData = await _apiService.getWallet(token);
         setState(() {
           _currentCoins = ConversionUtils.toInt(walletData['balance_coins']);
-          _currentBalance = ConversionUtils.toDouble(walletData['balance_rp']);
+          // Note: We don't need to store balance_rp in a field since it's not used
         });
       }
     } catch (e) {
@@ -162,9 +164,9 @@ class _TukarKoinScreenState extends State<TukarKoinScreen> {
       margin: const EdgeInsets.all(16),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.1),
+        color: Colors.white.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.2)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
       ),
       child: Column(
         children: [
@@ -196,7 +198,7 @@ class _TukarKoinScreenState extends State<TukarKoinScreen> {
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                           decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.2),
+                            color: Colors.white.withValues(alpha: 0.2),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: const Text(
@@ -216,7 +218,7 @@ class _TukarKoinScreenState extends State<TukarKoinScreen> {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.2),
+                  color: Colors.white.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: const Icon(
@@ -231,7 +233,7 @@ class _TukarKoinScreenState extends State<TukarKoinScreen> {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.1),
+              color: Colors.white.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Row(
@@ -355,12 +357,12 @@ class _TukarKoinScreenState extends State<TukarKoinScreen> {
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                   colors: [
-                    const Color(0xFF2E7D32).withOpacity(0.1),
-                    const Color(0xFF4CAF50).withOpacity(0.1),
+                    const Color(0xFF2E7D32).withValues(alpha: 0.1),
+                    const Color(0xFF4CAF50).withValues(alpha: 0.1),
                   ],
                 ),
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: const Color(0xFF2E7D32).withOpacity(0.2)),
+                border: Border.all(color: const Color(0xFF2E7D32).withValues(alpha: 0.2)),
               ),
               child: Column(
                 children: [
@@ -369,7 +371,7 @@ class _TukarKoinScreenState extends State<TukarKoinScreen> {
                       Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF2E7D32).withOpacity(0.1),
+                          color: const Color(0xFF2E7D32).withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: const Icon(

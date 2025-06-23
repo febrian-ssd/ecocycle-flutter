@@ -14,7 +14,8 @@ class ProfilePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    final userName = authProvider.user?.name ?? 'Username';
+    // FIXED: Access Map data correctly
+    final userName = authProvider.user?['name'] ?? 'Username';
 
     return Scaffold(
       backgroundColor: const Color(0xFF303030),
