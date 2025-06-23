@@ -1,4 +1,4 @@
-// lib/providers/auth_provider.dart - FINAL FIXED VERSION
+// lib/providers/auth_provider.dart - FINAL FIXED VERSION (Type Checks Fixed)
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:ecocycle_app/services/api_service.dart';
@@ -49,13 +49,8 @@ class AuthProvider with ChangeNotifier {
 
       _token = response['token'].toString();
       
-      // FIXED: Simplified user data assignment
-      final userData = response['user'];
-      if (userData is Map<String, dynamic>) {
-        _user = userData;
-      } else {
-        _user = Map<String, dynamic>.from(userData);
-      }
+      // FIXED: Direct assignment without unnecessary type check
+      _user = Map<String, dynamic>.from(response['user']);
       
       debugPrint('✅ Token set: ${_token!.substring(0, 10)}...');
       debugPrint('✅ User data set: ${_user!.keys}');
@@ -136,13 +131,8 @@ class AuthProvider with ChangeNotifier {
 
       _token = response['token'].toString();
       
-      // FIXED: Simplified user data assignment
-      final userData = response['user'];
-      if (userData is Map<String, dynamic>) {
-        _user = userData;
-      } else {
-        _user = Map<String, dynamic>.from(userData);
-      }
+      // FIXED: Direct assignment without unnecessary type check  
+      _user = Map<String, dynamic>.from(response['user']);
 
       // Save to SharedPreferences
       try {
@@ -188,12 +178,8 @@ class AuthProvider with ChangeNotifier {
         
         _token = token;
         
-        // FIXED: Simplified user data assignment
-        if (userInfo is Map<String, dynamic>) {
-          _user = userInfo;
-        } else {
-          _user = Map<String, dynamic>.from(userInfo);
-        }
+        // FIXED: Direct assignment without unnecessary type check
+        _user = Map<String, dynamic>.from(userInfo);
             
         notifyListeners();
         
@@ -262,12 +248,8 @@ class AuthProvider with ChangeNotifier {
         try {
           final userInfo = await _apiService.getProfile(_token!);
           
-          // FIXED: Simplified user data assignment
-          if (userInfo is Map<String, dynamic>) {
-            _user = userInfo;
-          } else {
-            _user = Map<String, dynamic>.from(userInfo);
-          }
+          // FIXED: Direct assignment without unnecessary type check
+          _user = Map<String, dynamic>.from(userInfo);
               
           notifyListeners();
           debugPrint('✅ Auth state loaded successfully');
@@ -299,12 +281,8 @@ class AuthProvider with ChangeNotifier {
       // Get updated user info
       final userInfo = await _apiService.getProfile(_token!);
       
-      // FIXED: Simplified user data assignment
-      if (userInfo is Map<String, dynamic>) {
-        _user = userInfo;
-      } else {
-        _user = Map<String, dynamic>.from(userInfo);
-      }
+      // FIXED: Direct assignment without unnecessary type check
+      _user = Map<String, dynamic>.from(userInfo);
 
       _isLoading = false;
       notifyListeners();
@@ -326,12 +304,8 @@ class AuthProvider with ChangeNotifier {
     try {
       final userInfo = await _apiService.getProfile(_token!);
       
-      // FIXED: Simplified user data assignment
-      if (userInfo is Map<String, dynamic>) {
-        _user = userInfo;
-      } else {
-        _user = Map<String, dynamic>.from(userInfo);
-      }
+      // FIXED: Direct assignment without unnecessary type check
+      _user = Map<String, dynamic>.from(userInfo);
           
       notifyListeners();
       debugPrint('✅ User data refreshed');

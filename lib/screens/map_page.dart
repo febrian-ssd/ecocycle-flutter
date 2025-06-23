@@ -1,4 +1,4 @@
-// lib/screens/map_page.dart - Dark Theme Enhanced
+// lib/screens/map_page.dart - Dark Theme Enhanced (FIXED - Removed unused field)
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -20,7 +20,7 @@ class MapPageState extends State<MapPage> with TickerProviderStateMixin {
   Set<Marker> _markers = {};
   bool _isLoading = true;
   List<Dropbox> _dropboxes = [];
-  Dropbox? _selectedDropbox;
+  // REMOVED: Unused field _selectedDropbox that was causing the warning
   
   late AnimationController _fadeController;
   late AnimationController _bounceController;
@@ -131,9 +131,7 @@ class MapPageState extends State<MapPage> with TickerProviderStateMixin {
   }
 
   void _showDropboxDetails(Dropbox dropbox) {
-    setState(() {
-      _selectedDropbox = dropbox;
-    });
+    // FIXED: No longer setting _selectedDropbox since it was unused
     
     showModalBottomSheet(
       context: context,

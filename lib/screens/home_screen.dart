@@ -1,14 +1,13 @@
-// lib/screens/home_screen.dart
+// lib/screens/home_screen.dart - FINAL FIX
 
 import 'package:flutter/material.dart';
 
-// Import semua halaman asli yang sudah kita buat
+// Import semua halaman dengan path yang benar
 import 'package:ecocycle_app/screens/map_page.dart';
 import 'package:ecocycle_app/screens/ecopay_page.dart';
 import 'package:ecocycle_app/screens/history_page.dart';
-import 'package:ecocycle_app/screens/profile_page.dart'; // <-- Pastikan ini di-import
+import 'package:ecocycle_app/screens/profile_page.dart'; 
 import 'package:ecocycle_app/screens/scan_screen.dart';
-
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -23,10 +22,10 @@ class _HomeScreenState extends State<HomeScreen> {
   // Daftar halaman sekarang sudah lengkap menunjuk ke file masing-masing
   static final List<Widget> _pages = <Widget>[
     const MapPage(),
-    EcoPayPage(), 
+    const EcoPayPage(), // FIXED: Added const
     const SizedBox.shrink(),
     const HistoryPage(),
-    const ProfilePage(), // <-- Pastikan ini menggunakan ProfilePage yang asli
+    const ProfilePage(),
   ];
 
   void _onItemTapped(int index) {
@@ -42,7 +41,9 @@ class _HomeScreenState extends State<HomeScreen> {
   void _scanButtonPressed() {
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (context) => const ScanScreen()),
+      MaterialPageRoute(
+        builder: (context) => const ScanScreen(),
+      ),
     );
   }
 
