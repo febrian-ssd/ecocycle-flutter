@@ -1,5 +1,4 @@
-// lib/screens/home_screen.dart - FINAL FIX
-
+// lib/screens/home_screen.dart - FIXED IMPORTS
 import 'package:flutter/material.dart';
 
 // Import semua halaman dengan path yang benar
@@ -22,8 +21,8 @@ class _HomeScreenState extends State<HomeScreen> {
   // Daftar halaman sekarang sudah lengkap menunjuk ke file masing-masing
   static final List<Widget> _pages = <Widget>[
     const MapPage(),
-    const EcoPayPage(), // FIXED: Added const
-    const SizedBox.shrink(),
+    const EcoPayPage(),
+    const SizedBox.shrink(), // Placeholder untuk scan button
     const HistoryPage(),
     const ProfilePage(),
   ];
@@ -39,12 +38,23 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _scanButtonPressed() {
+    debugPrint('🔄 Navigating to ScanScreen');
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => const ScanScreen(),
       ),
-    );
+    ).then((_) {
+      debugPrint('✅ Returned from ScanScreen');
+    }).catchError((error) {
+      debugPrint('❌ Error navigating to ScanScreen: $error');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Gagal membuka scanner: $error'),
+          backgroundColor: Colors.red[700],
+        ),
+      );
+    });
   }
 
   @override
@@ -54,29 +64,81 @@ class _HomeScreenState extends State<HomeScreen> {
         index: _selectedIndex,
         children: _pages,
       ),
-      bottomNavigationBar: BottomNavigationBar(
-        items: const <BottomNavigationBarItem>[
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-          BottomNavigationBarItem(icon: Icon(Icons.account_balance_wallet_outlined), label: 'EcoPay'),
-          BottomNavigationBarItem(icon: SizedBox.shrink(), label: ''),
-          BottomNavigationBarItem(icon: Icon(Icons.receipt_long), label: 'History'),
-          BottomNavigationBarItem(icon: Icon(Icons.person_outline), label: 'Profile'),
-        ],
-        currentIndex: _selectedIndex,
-        onTap: _onItemTapped,
-        type: BottomNavigationBarType.fixed,
-        backgroundColor: const Color(0xFF004d00),
-        selectedItemColor: Colors.orange,
-        unselectedItemColor: Colors.white70,
-        showSelectedLabels: true,
-        showUnselectedLabels: true,
+      bottomNavigationBar: Container(
+        decoration: const BoxDecoration(
+          color: Color(0xFF004d00),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black26,
+              blurRadius: 10,
+              offset: Offset(0, -2),
+            ),
+          ],
+        ),
+        child: BottomNavigationBar(
+          items: const <BottomNavigationBarItem>[
+            BottomNavigationBarItem(
+              icon: Icon(Icons.home),
+              label: 'Home',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.account_balance_wallet_outlined),
+              label: 'EcoPay',
+            ),
+            BottomNavigationBarItem(
+              icon: SizedBox.shrink(),
+              label: '',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.receipt_long),
+              label: 'History',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.person_outline),
+              label: 'Profile',
+            ),
+          ],
+          currentIndex: _selectedIndex,
+          onTap: _onItemTapped,
+          type: BottomNavigationBarType.fixed,
+          backgroundColor: Colors.transparent,
+          selectedItemColor: Colors.orange,
+          unselectedItemColor: Colors.white70,
+          showSelectedLabels: true,
+          showUnselectedLabels: true,
+          elevation: 0,
+          selectedLabelStyle: const TextStyle(
+            fontWeight: FontWeight.w600,
+            fontSize: 12,
+          ),
+          unselectedLabelStyle: const TextStyle(
+            fontWeight: FontWeight.w500,
+            fontSize: 11,
+          ),
+        ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _scanButtonPressed,
-        backgroundColor: Colors.orange,
-        shape: const CircleBorder(),
-        elevation: 2.0,
-        child: const Icon(Icons.qr_code_scanner, color: Colors.white, size: 32),
+      floatingActionButton: Container(
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.orange.withValues(alpha: 0.3),
+              blurRadius: 15,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: FloatingActionButton(
+          onPressed: _scanButtonPressed,
+          backgroundColor: Colors.orange,
+          foregroundColor: Colors.white,
+          shape: const CircleBorder(),
+          elevation: 0,
+          child: const Icon(
+            Icons.qr_code_scanner,
+            size: 32,
+          ),
+        ),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
     );

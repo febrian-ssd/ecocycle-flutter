@@ -1,8 +1,9 @@
-// lib/screens/history_page.dart - Real Scan Data
+// lib/screens/history_page.dart - FIXED DARK THEME & DATA
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:ecocycle_app/providers/auth_provider.dart';
 import 'package:ecocycle_app/services/api_service.dart';
+import 'package:ecocycle_app/utils/conversion_utils.dart';
 
 class HistoryPage extends StatefulWidget {
   const HistoryPage({super.key});
@@ -14,161 +15,418 @@ class HistoryPage extends StatefulWidget {
 class _HistoryPageState extends State<HistoryPage> with TickerProviderStateMixin {
   final ApiService _apiService = ApiService();
   List<Map<String, dynamic>> _scanHistory = [];
+  List<Map<String, dynamic>> _transactionHistory = [];
+  Map<String, dynamic> _scanStats = {};
   bool _isLoading = true;
+  int _selectedTabIndex = 0;
+  
+  late TabController _tabController;
   late AnimationController _fadeController;
   late Animation<double> _fadeAnimation;
 
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+    _initAnimations();
+    _loadData();
+  }
+
+  void _initAnimations() {
     _fadeController = AnimationController(
-      duration: const Duration(milliseconds: 1000),
+      duration: const Duration(milliseconds: 800),
       vsync: this,
     );
+    
     _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0)
         .animate(CurvedAnimation(parent: _fadeController, curve: Curves.easeOut));
-    
-    _loadScanHistory();
   }
 
   @override
   void dispose() {
+    _tabController.dispose();
     _fadeController.dispose();
     super.dispose();
   }
 
-  Future<void> _loadScanHistory() async {
+  Future<void> _loadData() async {
     try {
       final token = Provider.of<AuthProvider>(context, listen: false).token;
-      if (token != null) {
-        final history = await _apiService.getHistory(token);
+      if (token == null) return;
+
+      setState(() => _isLoading = true);
+
+      // Load scan history and stats
+      final futures = await Future.wait([
+        _apiService.getScanHistory(token),
+        _apiService.getScanStats(token),
+        _apiService.getTransactionHistory(token),
+      ]);
+
+      if (mounted) {
+        setState(() {
+          _scanHistory = List<Map<String, dynamic>>.from(futures[0]['data'] ?? []);
+          _scanStats = futures[1]['data'] ?? {};
+          _transactionHistory = List<Map<String, dynamic>>.from(futures[2]['data'] ?? []);
+          _isLoading = false;
+        });
         
-        if (mounted) {
-          setState(() {
-            _scanHistory = history;
-            _isLoading = false;
-          });
-          _fadeController.forward();
-        }
+        _fadeController.forward();
       }
     } catch (e) {
+      debugPrint('Error loading history: $e');
       if (mounted) {
         setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Gagal memuat riwayat: $e',
-              style: const TextStyle(fontWeight: FontWeight.w600),
-            ),
-            backgroundColor: Colors.red[700],
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          ),
-        );
+        _showSnackBar('Gagal memuat riwayat: ${e.toString()}', isError: true);
       }
     }
   }
 
-  Future<void> _refreshHistory() async {
-    setState(() => _isLoading = true);
-    await _loadScanHistory();
+  void _showSnackBar(String message, {bool isError = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          message,
+          style: const TextStyle(fontWeight: FontWeight.w600),
+        ),
+        backgroundColor: isError ? Colors.red[700] : Colors.green[700],
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF121212),
-      body: RefreshIndicator(
-        onRefresh: _refreshHistory,
-        color: const Color(0xFF4CAF50),
-        backgroundColor: const Color(0xFF2A2A2A),
-        child: CustomScrollView(
-          slivers: [
-            _buildHeader(),
-            _isLoading ? _buildLoadingSliver() : _buildHistoryList(),
-          ],
-        ),
+      body: Column(
+        children: [
+          _buildHeader(),
+          if (!_isLoading) _buildStatsCards(),
+          _buildTabBar(),
+          Expanded(
+            child: _isLoading ? _buildLoadingState() : _buildTabBarView(),
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildHeader() {
-    return SliverAppBar(
-      expandedHeight: 160,
-      pinned: true,
-      backgroundColor: const Color(0xFF1B5E20),
-      flexibleSpace: FlexibleSpaceBar(
-        centerTitle: true,
-        title: const Text(
-          'Riwayat Scan',
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-            fontSize: 20,
-          ),
+    return Container(
+      padding: const EdgeInsets.only(top: 50, left: 20, right: 20, bottom: 20),
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Color(0xFF1B5E20), Color(0xFF2E7D32), Color(0xFF4CAF50)],
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
         ),
-        background: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                Color(0xFF1B5E20),
-                Color(0xFF2E7D32),
-                Color(0xFF4CAF50),
-              ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.2),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(
+              Icons.history,
+              color: Colors.white,
+              size: 28,
             ),
           ),
-          child: SafeArea(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const SizedBox(height: 40),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Icon(
-                    Icons.history,
-                    color: Colors.white,
-                    size: 32,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Total ${_scanHistory.length} aktivitas',
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.8),
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
+          const SizedBox(width: 16),
+          const Expanded(
+            child: Text(
+              'Riwayat Aktivitas',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ),
+          IconButton(
+            onPressed: _loadData,
+            icon: const Icon(Icons.refresh, color: Colors.white),
+            tooltip: 'Refresh',
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatsCards() {
+    return FadeTransition(
+      opacity: _fadeAnimation,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            Expanded(child: _buildStatCard(
+              'Total Scan',
+              (_scanStats['total_scans'] ?? 0).toString(),
+              Icons.qr_code_scanner,
+              const Color(0xFF2196F3),
+            )),
+            const SizedBox(width: 12),
+            Expanded(child: _buildStatCard(
+              'Koin Earned',
+              (_scanStats['total_coins_earned'] ?? 0).toString(),
+              Icons.monetization_on,
+              const Color(0xFFFF9800),
+            )),
+            const SizedBox(width: 12),
+            Expanded(child: _buildStatCard(
+              'Sampah (kg)',
+              (_scanStats['total_waste_weight'] ?? 0.0).toStringAsFixed(1),
+              Icons.delete,
+              const Color(0xFF4CAF50),
+            )),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildLoadingSliver() {
-    return SliverFillRemaining(
-      child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF4CAF50)),
+  Widget _buildStatCard(String title, String value, IconData icon, Color color) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E1E1E),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+        boxShadow: [
+          BoxShadow(
+            color: color.withValues(alpha: 0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(8),
             ),
-            const SizedBox(height: 16),
-            Text(
-              'Memuat riwayat...',
-              style: TextStyle(
-                color: Colors.grey[400],
-                fontSize: 16,
-                fontWeight: FontWeight.w500,
+            child: Icon(icon, color: color, size: 20),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            value,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            title,
+            style: TextStyle(
+              color: Colors.grey[400],
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTabBar() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E1E1E),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: TabBar(
+        controller: _tabController,
+        indicator: BoxDecoration(
+          color: const Color(0xFF4CAF50),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        indicatorSize: TabBarIndicatorSize.tab,
+        labelColor: Colors.white,
+        unselectedLabelColor: Colors.grey[400],
+        labelStyle: const TextStyle(fontWeight: FontWeight.w600),
+        onTap: (index) => setState(() => _selectedTabIndex = index),
+        tabs: const [
+          Tab(
+            icon: Icon(Icons.qr_code_scanner, size: 20),
+            text: 'Riwayat Scan',
+          ),
+          Tab(
+            icon: Icon(Icons.account_balance_wallet, size: 20),
+            text: 'Transaksi',
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTabBarView() {
+    return FadeTransition(
+      opacity: _fadeAnimation,
+      child: TabBarView(
+        controller: _tabController,
+        children: [
+          _buildScanHistoryTab(),
+          _buildTransactionHistoryTab(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildScanHistoryTab() {
+    if (_scanHistory.isEmpty) {
+      return _buildEmptyState(
+        icon: Icons.qr_code_scanner,
+        title: 'Belum Ada Riwayat Scan',
+        subtitle: 'Mulai scan sampah untuk melihat riwayat di sini',
+      );
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: _scanHistory.length,
+      itemBuilder: (context, index) {
+        final history = _scanHistory[index];
+        return _buildScanHistoryCard(history, index);
+      },
+    );
+  }
+
+  Widget _buildScanHistoryCard(Map<String, dynamic> history, int index) {
+    final isSuccess = history['status'] == 'success';
+    final wasteType = history['waste_type'] ?? 'plastic';
+    final weight = ConversionUtils.toDouble(history['weight']);
+    final coinsEarned = ConversionUtils.toInt(history['coins_earned']);
+    final scanTime = DateTime.tryParse(history['scan_time'] ?? history['created_at'] ?? '');
+    final dropboxName = history['dropbox']?['location_name'] ?? 'Lokasi Tidak Diketahui';
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E1E1E),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isSuccess ? Colors.green.withValues(alpha: 0.3) : Colors.red.withValues(alpha: 0.3),
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: isSuccess 
+                        ? Colors.green.withValues(alpha: 0.1)
+                        : Colors.red.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    isSuccess ? Icons.check_circle : Icons.error,
+                    color: isSuccess ? Colors.green : Colors.red,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        isSuccess ? 'Scan Berhasil' : 'Scan Gagal',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      Text(
+                        scanTime?.toString().substring(0, 19) ?? 'Waktu tidak diketahui',
+                        style: TextStyle(
+                          color: Colors.grey[400],
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (isSuccess)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      '+$coinsEarned koin',
+                      style: const TextStyle(
+                        color: Colors.orange,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFF2A2A2A),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.category, color: Colors.grey[400], size: 16),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Jenis Sampah: ${_getWasteTypeName(wasteType)}',
+                        style: const TextStyle(color: Colors.white, fontSize: 14),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Icon(Icons.scale, color: Colors.grey[400], size: 16),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Berat: ${weight.toStringAsFixed(2)} kg',
+                        style: const TextStyle(color: Colors.white, fontSize: 14),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Icon(Icons.location_on, color: Colors.grey[400], size: 16),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Lokasi: $dropboxName',
+                          style: const TextStyle(color: Colors.white, fontSize: 14),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ),
           ],
@@ -177,331 +435,212 @@ class _HistoryPageState extends State<HistoryPage> with TickerProviderStateMixin
     );
   }
 
-  Widget _buildHistoryList() {
-    if (_scanHistory.isEmpty) {
-      return _buildEmptyState();
+  Widget _buildTransactionHistoryTab() {
+    if (_transactionHistory.isEmpty) {
+      return _buildEmptyState(
+        icon: Icons.account_balance_wallet,
+        title: 'Belum Ada Transaksi',
+        subtitle: 'Riwayat transaksi Anda akan muncul di sini',
+      );
     }
 
-    return SliverPadding(
+    return ListView.builder(
       padding: const EdgeInsets.all(16),
-      sliver: FadeTransition(
-        opacity: _fadeAnimation,
-        child: SliverList(
-          delegate: SliverChildBuilderDelegate(
-            (context, index) {
-              final historyItem = _scanHistory[index];
-              return _buildHistoryCard(historyItem, index);
-            },
-            childCount: _scanHistory.length,
-          ),
-        ),
-      ),
+      itemCount: _transactionHistory.length,
+      itemBuilder: (context, index) {
+        final transaction = _transactionHistory[index];
+        return _buildTransactionCard(transaction);
+      },
     );
   }
 
-  Widget _buildEmptyState() {
-    return SliverFillRemaining(
-      child: FadeTransition(
-        opacity: _fadeAnimation,
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF2A2A2A),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Icon(
-                  Icons.eco_outlined,
-                  size: 64,
-                  color: Colors.grey[600],
-                ),
-              ),
-              const SizedBox(height: 24),
-              Text(
-                'Belum Ada Riwayat Scan',
-                style: TextStyle(
-                  color: Colors.grey[400],
-                  fontSize: 20,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Mulai scan dropbox untuk melihat\nriwayat aktivitas Anda di sini',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Colors.grey[500],
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              const SizedBox(height: 32),
-              ElevatedButton.icon(
-                onPressed: () {
-                  // Navigate to scan screen
-                  Navigator.of(context).pop(); // Go back to home
-                  // Trigger scan from home (index 2)
-                },
-                icon: const Icon(Icons.qr_code_scanner),
-                label: const Text(
-                  'Mulai Scan',
-                  style: TextStyle(fontWeight: FontWeight.w600),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF4CAF50),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildHistoryCard(Map<String, dynamic> item, int index) {
-    // Parse data from API response
-    final String dropboxLocation = item['dropbox_location'] ?? item['location'] ?? 'Lokasi Tidak Diketahui';
-    final String dropboxAddress = item['dropbox_address'] ?? item['address'] ?? '';
-    final String wasteType = item['waste_type'] ?? 'Unknown';
-    final double weight = (item['weight'] ?? item['weight_g'] ?? 0.0) is String 
-        ? double.tryParse(item['weight'].toString()) ?? 0.0 
-        : (item['weight'] ?? item['weight_g'] ?? 0.0).toDouble();
-    final int coinsEarned = item['coins_earned'] ?? item['coins'] ?? 0;
-    final String scanTime = item['scan_time'] ?? item['created_at'] ?? DateTime.now().toIso8601String();
-    
-    // Parse scan time
-    DateTime? scanDate;
-    try {
-      scanDate = DateTime.parse(scanTime);
-    } catch (e) {
-      scanDate = DateTime.now();
-    }
+  Widget _buildTransactionCard(Map<String, dynamic> transaction) {
+    final type = transaction['type'] ?? '';
+    final description = transaction['description'] ?? '';
+    final amountRp = ConversionUtils.toDouble(transaction['amount_rp']);
+    final amountCoins = ConversionUtils.toInt(transaction['amount_coins']);
+    final isIncome = transaction['is_income'] ?? false;
+    final createdAt = DateTime.tryParse(transaction['created_at'] ?? '');
+    final typeLabel = transaction['type_label'] ?? '';
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      child: Material(
-        color: Colors.transparent,
-        child: Container(
-          decoration: BoxDecoration(
-            color: const Color(0xFF2A2A2A),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: _getWasteTypeColor(wasteType).withValues(alpha: 0.3),
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.2),
-                blurRadius: 8,
-                offset: const Offset(0, 4),
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E1E1E),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isIncome 
+              ? Colors.green.withValues(alpha: 0.3)
+              : Colors.red.withValues(alpha: 0.3),
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: isIncome 
+                    ? Colors.green.withValues(alpha: 0.1)
+                    : Colors.red.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
               ),
-            ],
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              child: Icon(
+                _getTransactionIcon(type),
+                color: isIncome ? Colors.green : Colors.red,
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    typeLabel,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    description,
+                    style: TextStyle(
+                      color: Colors.grey[400],
+                      fontSize: 12,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    createdAt?.toString().substring(0, 19) ?? '',
+                    style: TextStyle(
+                      color: Colors.grey[500],
+                      fontSize: 11,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                // Header with location and time
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: _getWasteTypeColor(wasteType).withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Icon(
-                        _getWasteTypeIcon(wasteType),
-                        color: _getWasteTypeColor(wasteType),
-                        size: 20,
-                      ),
+                if (amountRp != 0)
+                  Text(
+                    '${isIncome ? '+' : ''}${ConversionUtils.formatCurrency(amountRp.abs())}',
+                    style: TextStyle(
+                      color: isIncome ? Colors.green : Colors.red,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            dropboxLocation,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          if (dropboxAddress.isNotEmpty) ...[
-                            const SizedBox(height: 2),
-                            Text(
-                              dropboxAddress,
-                              style: TextStyle(
-                                color: Colors.grey[400],
-                                fontSize: 12,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                    Text(
-                      _formatTimeAgo(scanDate),
-                      style: TextStyle(
-                        color: Colors.grey[500],
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                
-                // Waste details
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1A1A1A),
-                    borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: _buildDetailItem(
-                          'Jenis Sampah',
-                          _formatWasteType(wasteType),
-                          Icons.category,
-                        ),
-                      ),
-                      Container(
-                        width: 1,
-                        height: 40,
-                        color: Colors.grey[700],
-                      ),
-                      Expanded(
-                        child: _buildDetailItem(
-                          'Berat',
-                          '${weight.toStringAsFixed(0)}g',
-                          Icons.scale,
-                        ),
-                      ),
-                      Container(
-                        width: 1,
-                        height: 40,
-                        color: Colors.grey[700],
-                      ),
-                      Expanded(
-                        child: _buildDetailItem(
-                          'EcoCoins',
-                          '$coinsEarned',
-                          Icons.eco,
-                        ),
-                      ),
-                    ],
+                if (amountCoins != 0)
+                  Text(
+                    '${amountCoins >= 0 ? '+' : ''}$amountCoins koin',
+                    style: TextStyle(
+                      color: amountCoins >= 0 ? Colors.orange : Colors.red,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
-                ),
               ],
             ),
-          ),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildDetailItem(String label, String value, IconData icon) {
-    return Column(
-      children: [
-        Icon(
-          icon,
-          color: const Color(0xFF4CAF50),
-          size: 16,
-        ),
-        const SizedBox(height: 4),
-        Text(
-          value,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 14,
-            fontWeight: FontWeight.bold,
+  Widget _buildLoadingState() {
+    return const Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          CircularProgressIndicator(
+            valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF4CAF50)),
           ),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          label,
-          style: TextStyle(
-            color: Colors.grey[500],
-            fontSize: 10,
-            fontWeight: FontWeight.w500,
+          SizedBox(height: 16),
+          Text(
+            'Memuat riwayat...',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 16,
+              fontWeight: FontWeight.w500,
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
-  Color _getWasteTypeColor(String wasteType) {
-    switch (wasteType.toLowerCase()) {
-      case 'plastic':
-        return Colors.orange;
-      case 'paper':
-        return Colors.brown;
-      case 'metal':
-        return Colors.grey;
-      case 'glass':
-        return Colors.blue;
-      default:
-        return const Color(0xFF4CAF50);
-    }
+  Widget _buildEmptyState({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+  }) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1E1E1E),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Icon(
+              icon,
+              size: 64,
+              color: Colors.grey[600],
+            ),
+          ),
+          const SizedBox(height: 24),
+          Text(
+            title,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 20,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            subtitle,
+            style: TextStyle(
+              color: Colors.grey[400],
+              fontSize: 16,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
   }
 
-  IconData _getWasteTypeIcon(String wasteType) {
-    switch (wasteType.toLowerCase()) {
-      case 'plastic':
-        return Icons.local_drink;
-      case 'paper':
-        return Icons.description;
-      case 'metal':
-        return Icons.build;
-      case 'glass':
-        return Icons.wine_bar;
-      default:
-        return Icons.recycling;
-    }
+  String _getWasteTypeName(String type) {
+    const Map<String, String> wasteTypes = {
+      'plastic': 'Plastik',
+      'paper': 'Kertas',
+      'metal': 'Logam',
+      'glass': 'Kaca',
+      'organic': 'Organik',
+    };
+    return wasteTypes[type] ?? 'Tidak Diketahui';
   }
 
-  String _formatWasteType(String wasteType) {
-    switch (wasteType.toLowerCase()) {
-      case 'plastic':
-        return 'Plastik';
-      case 'paper':
-        return 'Kertas';
-      case 'metal':
-        return 'Logam';
-      case 'glass':
-        return 'Kaca';
-      default:
-        return wasteType;
-    }
-  }
-
-  String _formatTimeAgo(DateTime dateTime) {
-    final now = DateTime.now();
-    final difference = now.difference(dateTime);
-    
-    if (difference.inDays > 0) {
-      return '${difference.inDays}h lalu';
-    } else if (difference.inHours > 0) {
-      return '${difference.inHours}j lalu';
-    } else if (difference.inMinutes > 0) {
-      return '${difference.inMinutes}m lalu';
-    } else {
-      return 'Baru saja';
-    }
+  IconData _getTransactionIcon(String type) {
+    const Map<String, IconData> icons = {
+      'topup': Icons.add_circle,
+      'manual_topup': Icons.add_circle,
+      'coin_exchange_to_rp': Icons.swap_horiz,
+      'scan_reward': Icons.qr_code_scanner,
+      'transfer_out': Icons.arrow_upward,
+      'transfer_in': Icons.arrow_downward,
+    };
+    return icons[type] ?? Icons.circle;
   }
 }

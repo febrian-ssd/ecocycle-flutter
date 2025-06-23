@@ -1,4 +1,4 @@
-// lib/providers/auth_provider.dart - FINAL FIXED VERSION (Type Checks Fixed)
+// lib/providers/auth_provider.dart - FINAL FIXED VERSION with refreshUserData
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:ecocycle_app/services/api_service.dart';
@@ -14,7 +14,7 @@ class AuthProvider with ChangeNotifier {
   Map<String, dynamic>? get user => _user;
   bool get isLoading => _isLoading;
   bool get isAuthenticated => _token != null && _token!.isNotEmpty;
-  bool get isLoggedIn => isAuthenticated; // Alias for consistency
+  bool get isLoggedIn => isAuthenticated;
 
   // Enhanced login method with better debugging
   Future<bool> login(String email, String password) async {
@@ -48,8 +48,6 @@ class AuthProvider with ChangeNotifier {
       }
 
       _token = response['token'].toString();
-      
-      // FIXED: Direct assignment without unnecessary type check
       _user = Map<String, dynamic>.from(response['user']);
       
       debugPrint('✅ Token set: ${_token!.substring(0, 10)}...');
@@ -63,17 +61,14 @@ class AuthProvider with ChangeNotifier {
         debugPrint('✅ Data saved to SharedPreferences');
       } catch (e) {
         debugPrint('⚠️ Failed to save to SharedPreferences: $e');
-        // Don't throw error here, login can still work
       }
 
       _isLoading = false;
       debugPrint('🔄 Set loading to false');
       
-      // Force notify listeners
       notifyListeners();
       debugPrint('🔔 Notified listeners - login complete');
       
-      // Double check state
       debugPrint('🔍 Final state check:');
       debugPrint('   isAuthenticated: $isAuthenticated');
       debugPrint('   isLoggedIn: $isLoggedIn');
@@ -130,8 +125,6 @@ class AuthProvider with ChangeNotifier {
       }
 
       _token = response['token'].toString();
-      
-      // FIXED: Direct assignment without unnecessary type check  
       _user = Map<String, dynamic>.from(response['user']);
 
       // Save to SharedPreferences
@@ -177,8 +170,6 @@ class AuthProvider with ChangeNotifier {
         final userInfo = await _apiService.getProfile(token);
         
         _token = token;
-        
-        // FIXED: Direct assignment without unnecessary type check
         _user = Map<String, dynamic>.from(userInfo);
             
         notifyListeners();
@@ -213,7 +204,6 @@ class AuthProvider with ChangeNotifier {
       }
     } catch (e) {
       debugPrint('⚠️ Server logout failed: $e');
-      // Continue with local logout even if server logout fails
     }
 
     // Clear local state
@@ -247,8 +237,6 @@ class AuthProvider with ChangeNotifier {
         
         try {
           final userInfo = await _apiService.getProfile(_token!);
-          
-          // FIXED: Direct assignment without unnecessary type check
           _user = Map<String, dynamic>.from(userInfo);
               
           notifyListeners();
@@ -256,7 +244,7 @@ class AuthProvider with ChangeNotifier {
           
         } catch (e) {
           debugPrint('❌ Failed to load user info: $e');
-          await logout(); // Clear invalid data
+          await logout();
         }
       } else {
         debugPrint('❌ No valid token found');
@@ -280,8 +268,6 @@ class AuthProvider with ChangeNotifier {
       
       // Get updated user info
       final userInfo = await _apiService.getProfile(_token!);
-      
-      // FIXED: Direct assignment without unnecessary type check
       _user = Map<String, dynamic>.from(userInfo);
 
       _isLoading = false;
@@ -303,8 +289,6 @@ class AuthProvider with ChangeNotifier {
 
     try {
       final userInfo = await _apiService.getProfile(_token!);
-      
-      // FIXED: Direct assignment without unnecessary type check
       _user = Map<String, dynamic>.from(userInfo);
           
       notifyListeners();
@@ -312,6 +296,61 @@ class AuthProvider with ChangeNotifier {
       
     } catch (e) {
       debugPrint('❌ Refresh user error: $e');
+    }
+  }
+
+  // NEW: Refresh user data method (alias for refreshUser for compatibility)
+  Future<void> refreshUserData() async {
+    await refreshUser();
+  }
+
+  // NEW: Get user wallet data and update user state
+  Future<void> refreshWalletData() async {
+    if (_token == null) return;
+
+    try {
+      final walletData = await _apiService.getWallet(_token!);
+      
+      // Update user data with wallet info
+      if (_user != null) {
+        _user!['balance_rp'] = walletData['balance_rp'];
+        _user!['balance_coins'] = walletData['balance_coins'];
+        _user!['eco_coins'] = walletData['balance_coins']; // Alias for compatibility
+        
+        notifyListeners();
+        debugPrint('✅ Wallet data refreshed');
+      }
+      
+    } catch (e) {
+      debugPrint('❌ Refresh wallet data error: $e');
+    }
+  }
+
+  // NEW: Combined refresh method
+  Future<void> refreshAllData() async {
+    if (_token == null) return;
+
+    try {
+      // Refresh both user profile and wallet data
+      final futures = await Future.wait([
+        _apiService.getProfile(_token!),
+        _apiService.getWallet(_token!),
+      ]);
+      
+      final userInfo = futures[0] as Map<String, dynamic>;
+      final walletData = futures[1] as Map<String, dynamic>;
+      
+      // Merge user and wallet data
+      _user = Map<String, dynamic>.from(userInfo);
+      _user!['balance_rp'] = walletData['balance_rp'];
+      _user!['balance_coins'] = walletData['balance_coins'];
+      _user!['eco_coins'] = walletData['balance_coins'];
+      
+      notifyListeners();
+      debugPrint('✅ All user data refreshed');
+      
+    } catch (e) {
+      debugPrint('❌ Refresh all data error: $e');
     }
   }
 
@@ -325,6 +364,8 @@ class AuthProvider with ChangeNotifier {
     debugPrint('   user: ${_user?.keys}');
     debugPrint('   user name: ${_user?['name']}');
     debugPrint('   user email: ${_user?['email']}');
+    debugPrint('   user balance_rp: ${_user?['balance_rp']}');
+    debugPrint('   user balance_coins: ${_user?['balance_coins']}');
     debugPrint('=====================================');
   }
 }

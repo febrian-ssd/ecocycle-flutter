@@ -1,11 +1,13 @@
-// lib/screens/profile_page.dart - Elegant Dark Theme
+// lib/screens/profile_page.dart - Elegant Dark Theme with Real Data
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:ecocycle_app/providers/auth_provider.dart';
+import 'package:ecocycle_app/services/api_service.dart';
 import 'package:ecocycle_app/screens/personal_info_screen.dart';
 import 'package:ecocycle_app/screens/invite_friend_screen.dart';
 import 'package:ecocycle_app/screens/biography_screen.dart';
 import 'package:ecocycle_app/screens/edit_profile_screen.dart';
+import 'package:ecocycle_app/utils/conversion_utils.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -15,10 +17,18 @@ class ProfilePage extends StatefulWidget {
 }
 
 class _ProfilePageState extends State<ProfilePage> with TickerProviderStateMixin {
+  final ApiService _apiService = ApiService();
   late AnimationController _fadeController;
   late AnimationController _slideController;
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
+
+  // Real data variables
+  double _balanceRp = 0.0;
+  int _balanceCoins = 0;
+  int _totalScans = 0;
+  double _totalWasteKg = 0.0;
+  bool _isLoading = true;
 
   @override
   void initState() {
@@ -42,6 +52,9 @@ class _ProfilePageState extends State<ProfilePage> with TickerProviderStateMixin
     
     _fadeController.forward();
     _slideController.forward();
+    
+    // Load real data
+    _loadUserData();
   }
 
   @override
@@ -49,6 +62,48 @@ class _ProfilePageState extends State<ProfilePage> with TickerProviderStateMixin
     _fadeController.dispose();
     _slideController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadUserData() async {
+    try {
+      final token = Provider.of<AuthProvider>(context, listen: false).token;
+      if (token != null) {
+        // Load wallet data
+        final walletData = await _apiService.getWallet(token);
+        
+        // Load history data for statistics
+        final historyData = await _apiService.getHistory(token);
+        
+        // Calculate statistics from history
+        int totalScans = historyData.length;
+        double totalWaste = 0.0;
+        
+        for (var scan in historyData) {
+          double weight = ConversionUtils.toDouble(scan['weight'] ?? scan['weight_g'] ?? 0);
+          totalWaste += weight;
+        }
+        
+        if (mounted) {
+          setState(() {
+            _balanceRp = ConversionUtils.toDouble(walletData['balance_rp']);
+            _balanceCoins = ConversionUtils.toInt(walletData['balance_coins']);
+            _totalScans = totalScans;
+            _totalWasteKg = totalWaste / 1000; // Convert grams to kg
+            _isLoading = false;
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Error loading user data: $e');
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _refreshData() async {
+    setState(() => _isLoading = true);
+    await _loadUserData();
   }
 
   @override
@@ -59,29 +114,34 @@ class _ProfilePageState extends State<ProfilePage> with TickerProviderStateMixin
 
     return Scaffold(
       backgroundColor: const Color(0xFF121212),
-      body: FadeTransition(
-        opacity: _fadeAnimation,
-        child: SlideTransition(
-          position: _slideAnimation,
-          child: CustomScrollView(
-            slivers: [
-              _buildProfileHeader(userName, userEmail),
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    children: [
-                      _buildStatsCard(),
-                      const SizedBox(height: 24),
-                      _buildMenuSection(),
-                      const SizedBox(height: 32),
-                      _buildLogoutButton(authProvider),
-                      const SizedBox(height: 20),
-                    ],
+      body: RefreshIndicator(
+        onRefresh: _refreshData,
+        color: const Color(0xFF4CAF50),
+        backgroundColor: const Color(0xFF2A2A2A),
+        child: FadeTransition(
+          opacity: _fadeAnimation,
+          child: SlideTransition(
+            position: _slideAnimation,
+            child: CustomScrollView(
+              slivers: [
+                _buildProfileHeader(userName, userEmail),
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      children: [
+                        _buildStatsCard(),
+                        const SizedBox(height: 24),
+                        _buildMenuSection(),
+                        const SizedBox(height: 32),
+                        _buildLogoutButton(authProvider),
+                        const SizedBox(height: 20),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -182,7 +242,7 @@ class _ProfilePageState extends State<ProfilePage> with TickerProviderStateMixin
                           );
                         },
                       ),
-                    );
+                    ).then((_) => _refreshData()); // Refresh data after editing
                   },
                   icon: const Icon(Icons.edit, size: 16),
                   label: const Text(
@@ -250,20 +310,92 @@ class _ProfilePageState extends State<ProfilePage> with TickerProviderStateMixin
                   fontWeight: FontWeight.bold,
                 ),
               ),
+              const Spacer(),
+              if (_isLoading)
+                const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF4CAF50)),
+                  ),
+                ),
             ],
           ),
           const SizedBox(height: 20),
+          
+          // Wallet Info Row
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1A1A1A),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: _buildWalletItem(
+                    'Saldo',
+                    _isLoading ? '...' : ConversionUtils.formatCurrency(_balanceRp),
+                    Icons.account_balance_wallet,
+                    const Color(0xFF4CAF50),
+                  ),
+                ),
+                Container(width: 1, height: 40, color: Colors.grey[700]),
+                Expanded(
+                  child: _buildWalletItem(
+                    'EcoCoins',
+                    _isLoading ? '...' : '$_balanceCoins',
+                    Icons.eco,
+                    Colors.orange,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          
+          const SizedBox(height: 16),
+          
+          // Activity Stats Row
           Row(
             children: [
-              Expanded(child: _buildStatItem('Total Scan', '12', Icons.qr_code_scanner)),
+              Expanded(child: _buildStatItem('Total Scan', _isLoading ? '...' : '$_totalScans', Icons.qr_code_scanner)),
               Container(width: 1, height: 40, color: Colors.grey[700]),
-              Expanded(child: _buildStatItem('EcoCoins', '1,240', Icons.monetization_on)),
-              Container(width: 1, height: 40, color: Colors.grey[700]),
-              Expanded(child: _buildStatItem('Sampah (kg)', '3.2', Icons.recycling)),
+              Expanded(child: _buildStatItem('Sampah (kg)', _isLoading ? '...' : _totalWasteKg.toStringAsFixed(1), Icons.recycling)),
             ],
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildWalletItem(String label, String value, IconData icon, Color color) {
+    return Column(
+      children: [
+        Icon(
+          icon,
+          color: color,
+          size: 24,
+        ),
+        const SizedBox(height: 8),
+        Text(
+          value,
+          style: TextStyle(
+            color: color,
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          label,
+          style: TextStyle(
+            color: Colors.grey[400],
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ],
     );
   }
 
@@ -532,7 +664,7 @@ class _ProfilePageState extends State<ProfilePage> with TickerProviderStateMixin
           );
         },
       ),
-    );
+    ).then((_) => _refreshData()); // Refresh data when returning
   }
 
   void _showLogoutDialog(AuthProvider authProvider) {

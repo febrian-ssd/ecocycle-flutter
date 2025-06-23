@@ -1,8 +1,10 @@
+// lib/screens/transfer_screen.dart - Fixed Transfer Functionality
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:ecocycle_app/providers/auth_provider.dart';
 import 'package:ecocycle_app/services/api_service.dart';
 import 'package:ecocycle_app/utils/conversion_utils.dart';
+import 'package:ecocycle_app/screens/transaksi_berhasil_screen.dart';
 
 class TransferScreen extends StatefulWidget {
   const TransferScreen({super.key});
@@ -11,7 +13,7 @@ class TransferScreen extends StatefulWidget {
   State<TransferScreen> createState() => _TransferScreenState();
 }
 
-class _TransferScreenState extends State<TransferScreen> {
+class _TransferScreenState extends State<TransferScreen> with TickerProviderStateMixin {
   final ApiService _apiService = ApiService();
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
@@ -20,15 +22,32 @@ class _TransferScreenState extends State<TransferScreen> {
   
   bool _isLoading = false;
   double _currentBalance = 0.0;
+  
+  late AnimationController _fadeController;
+  late Animation<double> _fadeAnimation;
 
   @override
   void initState() {
     super.initState();
+    _initAnimations();
     _loadCurrentBalance();
+  }
+
+  void _initAnimations() {
+    _fadeController = AnimationController(
+      duration: const Duration(milliseconds: 1000),
+      vsync: this,
+    );
+    
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0)
+        .animate(CurvedAnimation(parent: _fadeController, curve: Curves.easeOut));
+    
+    _fadeController.forward();
   }
 
   @override
   void dispose() {
+    _fadeController.dispose();
     _emailController.dispose();
     _amountController.dispose();
     _descriptionController.dispose();
@@ -45,13 +64,9 @@ class _TransferScreenState extends State<TransferScreen> {
         });
       }
     } catch (e) {
+      debugPrint('Error loading balance: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Gagal memuat saldo: $e'),
-            backgroundColor: Colors.red[700],
-          ),
-        );
+        _showSnackBar('Gagal memuat saldo: ${e.toString()}', isError: true);
       }
     }
   }
@@ -64,13 +79,13 @@ class _TransferScreenState extends State<TransferScreen> {
     try {
       final token = Provider.of<AuthProvider>(context, listen: false).token;
       if (token == null) {
-        throw Exception('Token tidak ditemukan');
+        throw Exception('Token tidak ditemukan. Silakan login kembali.');
       }
 
       final amount = ConversionUtils.toDouble(_amountController.text);
       
       if (amount > _currentBalance) {
-        throw Exception('Saldo tidak mencukupi');
+        throw Exception('Saldo tidak mencukupi untuk transfer sebesar ${ConversionUtils.formatCurrency(amount)}');
       }
 
       await _apiService.transfer(
@@ -81,40 +96,58 @@ class _TransferScreenState extends State<TransferScreen> {
       );
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text(
-              'Transfer berhasil!',
-              style: TextStyle(fontWeight: FontWeight.w600),
-            ),
-            backgroundColor: Colors.green[700],
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        // Navigate to success screen
+        Navigator.pushReplacement(
+          context,
+          PageRouteBuilder(
+            pageBuilder: (context, animation, secondaryAnimation) => 
+                TransferBerhasilScreen(
+                  amount: amount,
+                  recipientEmail: _emailController.text.trim(),
+                ),
+            transitionsBuilder: (context, animation, secondaryAnimation, child) {
+              return SlideTransition(
+                position: Tween<Offset>(
+                  begin: const Offset(1.0, 0.0),
+                  end: Offset.zero,
+                ).animate(animation),
+                child: child,
+              );
+            },
           ),
-        );
-        
-        Navigator.pop(context, true);
+        ).then((_) {
+          // Return true to indicate success
+          Navigator.pop(context, true);
+        });
       }
     } catch (e) {
       if (mounted) {
         String errorMessage = e.toString().replaceFirst('Exception: ', '');
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Transfer gagal: $errorMessage',
-              style: const TextStyle(fontWeight: FontWeight.w600),
-            ),
-            backgroundColor: Colors.red[700],
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          ),
-        );
+        _showSnackBar('Transfer gagal: $errorMessage', isError: true);
       }
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
       }
     }
+  }
+
+  void _showSnackBar(String message, {bool isError = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          message,
+          style: const TextStyle(fontWeight: FontWeight.w600),
+        ),
+        backgroundColor: isError ? Colors.red[700] : Colors.green[700],
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
+  }
+
+  void _setQuickAmount(double amount) {
+    _amountController.text = amount.toStringAsFixed(0);
   }
 
   @override
@@ -138,23 +171,26 @@ class _TransferScreenState extends State<TransferScreen> {
         ),
       ),
       backgroundColor: const Color(0xFF1B5E20),
-      body: Column(
-        children: [
-          _buildBalanceCard(),
-          Expanded(
-            child: Container(
-              margin: const EdgeInsets.only(top: 20),
-              decoration: const BoxDecoration(
-                color: Color(0xFF121212),
-                borderRadius: BorderRadius.only(
-                  topLeft: Radius.circular(24),
-                  topRight: Radius.circular(24),
+      body: FadeTransition(
+        opacity: _fadeAnimation,
+        child: Column(
+          children: [
+            _buildBalanceCard(),
+            Expanded(
+              child: Container(
+                margin: const EdgeInsets.only(top: 20),
+                decoration: const BoxDecoration(
+                  color: Color(0xFF121212),
+                  borderRadius: BorderRadius.only(
+                    topLeft: Radius.circular(24),
+                    topRight: Radius.circular(24),
+                  ),
                 ),
+                child: _buildTransferForm(),
               ),
-              child: _buildTransferForm(),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -279,7 +315,7 @@ class _TransferScreenState extends State<TransferScreen> {
                 fillColor: const Color(0xFF2A2A2A),
               ),
               validator: (value) {
-                if (value == null || value.isEmpty) {
+                if (value == null || value.trim().isEmpty) {
                   return 'Email penerima harus diisi';
                 }
                 if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value)) {
@@ -290,7 +326,7 @@ class _TransferScreenState extends State<TransferScreen> {
             ),
             const SizedBox(height: 24),
             
-            // Amount Field
+            // Quick Amount Buttons
             const Text(
               'Jumlah Transfer',
               style: TextStyle(
@@ -299,7 +335,19 @@ class _TransferScreenState extends State<TransferScreen> {
                 color: Colors.white,
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 12),
+            
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [50000, 100000, 200000, 500000].map((amount) => 
+                _buildQuickAmountButton(amount.toDouble())
+              ).toList(),
+            ),
+            
+            const SizedBox(height: 16),
+            
+            // Amount Field
             TextFormField(
               controller: _amountController,
               keyboardType: TextInputType.number,
@@ -308,7 +356,7 @@ class _TransferScreenState extends State<TransferScreen> {
                 fontWeight: FontWeight.w500,
               ),
               decoration: InputDecoration(
-                hintText: 'Masukkan jumlah',
+                hintText: 'Atau masukkan jumlah custom',
                 hintStyle: TextStyle(
                   color: Colors.grey[500],
                   fontWeight: FontWeight.w400,
@@ -335,7 +383,7 @@ class _TransferScreenState extends State<TransferScreen> {
                 fillColor: const Color(0xFF2A2A2A),
               ),
               validator: (value) {
-                if (value == null || value.isEmpty) {
+                if (value == null || value.trim().isEmpty) {
                   return 'Jumlah transfer harus diisi';
                 }
                 
@@ -348,6 +396,9 @@ class _TransferScreenState extends State<TransferScreen> {
                 }
                 if (amount < 1000) {
                   return 'Minimal transfer Rp 1.000';
+                }
+                if (amount > 10000000) {
+                  return 'Maksimal transfer Rp 10.000.000';
                 }
                 return null;
               },
@@ -367,6 +418,7 @@ class _TransferScreenState extends State<TransferScreen> {
             TextFormField(
               controller: _descriptionController,
               maxLines: 3,
+              maxLength: 100,
               style: const TextStyle(
                 color: Colors.white,
                 fontWeight: FontWeight.w500,
@@ -461,6 +513,28 @@ class _TransferScreenState extends State<TransferScreen> {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildQuickAmountButton(double amount) {
+    return GestureDetector(
+      onTap: () => _setQuickAmount(amount),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: const Color(0xFF2A2A2A),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: Colors.grey[600]!),
+        ),
+        child: Text(
+          ConversionUtils.formatCurrency(amount),
+          style: const TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+          ),
         ),
       ),
     );

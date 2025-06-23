@@ -1,4 +1,4 @@
-// lib/screens/register_screen.dart - ELEGANT CLEAN VERSION
+// lib/screens/register_screen.dart - ELEGANT CLEAN VERSION WITH THICK BORDERS
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:ecocycle_app/providers/auth_provider.dart';
@@ -451,23 +451,23 @@ class _RegisterScreenState extends State<RegisterScreen> with TickerProviderStat
             fillColor: Colors.grey[50],
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.grey[300]!),
+              borderSide: BorderSide(color: Colors.grey[400]!, width: 2), // THICKER BORDER
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.grey[300]!),
+              borderSide: BorderSide(color: Colors.grey[400]!, width: 2), // THICKER BORDER
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Color(0xFF2E7D32), width: 2),
+              borderSide: const BorderSide(color: Color(0xFF2E7D32), width: 3), // EVEN THICKER ON FOCUS
             ),
             errorBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Colors.red, width: 1),
+              borderSide: const BorderSide(color: Colors.red, width: 2), // THICKER ERROR BORDER
             ),
             focusedErrorBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Colors.red, width: 2),
+              borderSide: const BorderSide(color: Colors.red, width: 3), // THICKER FOCUSED ERROR BORDER
             ),
             contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
           ),

@@ -1,4 +1,4 @@
-// lib/services/api_service.dart - DEBUG RESPONSE VERSION
+// lib/services/api_service.dart - FIXED API SERVICE
 import 'dart:convert';
 import 'dart:io';
 import 'dart:async';
@@ -65,23 +65,7 @@ class ApiService {
         debugPrint('📊 Response data type: ${responseData.runtimeType}');
         debugPrint('📊 Response keys: ${responseData is Map ? responseData.keys : 'Not a Map'}');
         
-        // ENHANCED: Log specific fields we're looking for
         if (responseData is Map<String, dynamic>) {
-          debugPrint('🔍 Token in response: ${responseData.containsKey('token')}');
-          debugPrint('🔍 User in response: ${responseData.containsKey('user')}');
-          debugPrint('🔍 Data in response: ${responseData.containsKey('data')}');
-          debugPrint('🔍 Access_token in response: ${responseData.containsKey('access_token')}');
-          debugPrint('🔍 Success in response: ${responseData.containsKey('success')}');
-          debugPrint('🔍 Message in response: ${responseData.containsKey('message')}');
-          
-          // Check if token is in nested data
-          if (responseData.containsKey('data') && responseData['data'] is Map) {
-            final data = responseData['data'] as Map<String, dynamic>;
-            debugPrint('🔍 Token in data: ${data.containsKey('token')}');
-            debugPrint('🔍 User in data: ${data.containsKey('user')}');
-            debugPrint('🔍 Access_token in data: ${data.containsKey('access_token')}');
-          }
-          
           return responseData;
         } else {
           return {'data': responseData};
@@ -105,10 +89,12 @@ class ApiService {
             break;
           case 422:
             errorMessage = errorData['message'] ?? 'Data tidak valid';
-            // Log validation errors if present
             if (errorData['errors'] != null) {
               debugPrint('📝 Validation errors: ${errorData['errors']}');
             }
+            break;
+          case 404:
+            errorMessage = 'Data tidak ditemukan';
             break;
           case 500:
             errorMessage = 'Server sedang bermasalah. Coba lagi nanti.';
@@ -153,7 +139,6 @@ class ApiService {
       final result = _handleResponse(response);
       debugPrint('✅ HTTPS login response processed');
       
-      // ENHANCED: Handle different response formats
       return _normalizeLoginResponse(result);
       
     } catch (e) {
@@ -188,7 +173,6 @@ class ApiService {
     }
   }
 
-  // ENHANCED: Normalize different login response formats
   Map<String, dynamic> _normalizeLoginResponse(Map<String, dynamic> response) {
     debugPrint('🔧 Normalizing login response...');
     debugPrint('📊 Original response: $response');
@@ -233,15 +217,11 @@ class ApiService {
     debugPrint('🔍 Final extracted token: ${token?.substring(0, 20)}...');
     debugPrint('🔍 Final extracted user: ${user?.keys}');
     
-    // Return normalized format
-    final normalized = {
+    return {
       'token': token,
       'user': user,
-      'original_response': response, // Keep original for debugging
+      'original_response': response,
     };
-    
-    debugPrint('📦 Normalized response: ${normalized.keys}');
-    return normalized;
   }
 
   Future<Map<String, dynamic>> register({
@@ -265,7 +245,7 @@ class ApiService {
     ));
 
     final result = _handleResponse(response);
-    return _normalizeLoginResponse(result); // Use same normalization for register
+    return _normalizeLoginResponse(result);
   }
 
   Future<void> logout(String token) async {
@@ -355,14 +335,18 @@ class ApiService {
     debugPrint('✅ Confirming scan');
     final url = Uri.parse('$_baseUrl/scan/confirm');
     
+    final requestBody = {
+      'dropbox_code': dropboxCode,
+      'waste_type': wasteType,
+      'weight': weight,
+    };
+    
+    debugPrint('📤 Confirm scan request: $requestBody');
+    
     final response = await _makeRequest(() => http.post(
       url,
       headers: _getHeaders(token: token),
-      body: json.encode({
-        'dropbox_code': dropboxCode,
-        'waste_type': wasteType,
-        'weight': weight,
-      }),
+      body: json.encode(requestBody),
     ));
 
     return _handleResponse(response);
@@ -397,8 +381,8 @@ class ApiService {
     final responseData = _handleResponse(response);
     
     return {
-      'balance_rp': ConversionUtils.toDouble(responseData['balance_rp']),
-      'balance_coins': ConversionUtils.toInt(responseData['balance_coins']),
+      'balance_rp': ConversionUtils.toDouble(responseData['balance_rp'] ?? responseData['data']?['balance_rp']),
+      'balance_coins': ConversionUtils.toInt(responseData['balance_coins'] ?? responseData['data']?['balance_coins']),
       'formatted_balance_rp': responseData['formatted_balance_rp'] ?? 'Rp 0',
     };
   }
@@ -428,14 +412,18 @@ class ApiService {
     debugPrint('💸 Making transfer');
     final url = Uri.parse('$_baseUrl/transfer');
     
+    final requestBody = {
+      'email': email,
+      'amount': amount,
+      'description': description ?? '',
+    };
+    
+    debugPrint('📤 Transfer request: $requestBody');
+    
     final response = await _makeRequest(() => http.post(
       url,
       headers: _getHeaders(token: token),
-      body: json.encode({
-        'email': email,
-        'amount': amount,
-        'description': description ?? '',
-      }),
+      body: json.encode(requestBody),
     ));
 
     return _handleResponse(response);
@@ -444,18 +432,29 @@ class ApiService {
   Future<Map<String, dynamic>> exchangeCoins(String token, {
     required int coins,
   }) async {
-    debugPrint('🔄 Exchanging coins');
+    debugPrint('🔄 Exchanging coins: $coins');
     final url = Uri.parse('$_baseUrl/exchange-coins');
+    
+    final requestBody = {
+      'coins': coins,
+    };
+    
+    debugPrint('📤 Exchange coins request: $requestBody');
     
     final response = await _makeRequest(() => http.post(
       url,
       headers: _getHeaders(token: token),
-      body: json.encode({
-        'coins': coins,
-      }),
+      body: json.encode(requestBody),
     ));
 
-    return _handleResponse(response);
+    final result = _handleResponse(response);
+    
+    // Ensure we return success flag
+    return {
+      'success': true,
+      'message': result['message'] ?? 'Berhasil menukar coins',
+      'data': result['data'] ?? result,
+    };
   }
 
   Future<Map<String, dynamic>> topupRequest(String token, {
