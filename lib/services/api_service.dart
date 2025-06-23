@@ -1,4 +1,4 @@
-// lib/services/api_service.dart - FIXED API SERVICE
+// lib/services/api_service.dart - COMPLETE FIXED VERSION
 import 'dart:convert';
 import 'dart:io';
 import 'dart:async';
@@ -32,12 +32,6 @@ class ApiService {
       debugPrint('🌐 Making HTTP request...');
       final response = await request().timeout(_timeout);
       debugPrint('🌐 HTTP response received: ${response.statusCode}');
-      debugPrint('🌐 Response headers: ${response.headers}');
-      debugPrint('🌐 Response body length: ${response.body.length}');
-      
-      // ENHANCED: Log full response body for debugging
-      debugPrint('📝 Full response body: ${response.body}');
-      
       return response;
     } on TimeoutException catch (e) {
       debugPrint('❌ TimeoutException: $e');
@@ -56,15 +50,10 @@ class ApiService {
 
   Map<String, dynamic> _handleResponse(http.Response response) {
     debugPrint('🔍 Handling response: ${response.statusCode}');
-    debugPrint('🔍 Response URL: ${response.request?.url}');
     
     if (response.statusCode >= 200 && response.statusCode < 300) {
       try {
         final responseData = json.decode(response.body);
-        debugPrint('✅ Response parsed successfully');
-        debugPrint('📊 Response data type: ${responseData.runtimeType}');
-        debugPrint('📊 Response keys: ${responseData is Map ? responseData.keys : 'Not a Map'}');
-        
         if (responseData is Map<String, dynamic>) {
           return responseData;
         } else {
@@ -72,12 +61,10 @@ class ApiService {
         }
       } catch (e) {
         debugPrint('❌ Failed to parse JSON: $e');
-        debugPrint('📝 Raw response: ${response.body}');
         throw Exception('Response server tidak valid (bukan JSON)');
       }
     } else {
       debugPrint('❌ HTTP Error: ${response.statusCode}');
-      debugPrint('📝 Error body: ${response.body}');
       
       try {
         final errorData = json.decode(response.body);
@@ -89,9 +76,6 @@ class ApiService {
             break;
           case 422:
             errorMessage = errorData['message'] ?? 'Data tidak valid';
-            if (errorData['errors'] != null) {
-              debugPrint('📝 Validation errors: ${errorData['errors']}');
-            }
             break;
           case 404:
             errorMessage = 'Data tidak ditemukan';
@@ -123,12 +107,8 @@ class ApiService {
       'password': password,
     };
     
-    debugPrint('📤 Login request body: $requestBody');
-    
-    // Try HTTPS first
     try {
       final url = Uri.parse('$_baseUrl/login');
-      debugPrint('🌐 Trying HTTPS login: $url');
       
       final response = await _makeRequest(() => http.post(
         url,
@@ -137,37 +117,25 @@ class ApiService {
       ));
 
       final result = _handleResponse(response);
-      debugPrint('✅ HTTPS login response processed');
-      
       return _normalizeLoginResponse(result);
       
     } catch (e) {
       debugPrint('❌ HTTPS login failed: $e');
       
-      // Try HTTP fallback
-      if (e.toString().contains('301') || e.toString().contains('302')) {
-        debugPrint('🔄 Trying HTTP fallback due to redirect...');
+      try {
+        final fallbackUrl = Uri.parse('$_fallbackUrl/login');
         
-        try {
-          final fallbackUrl = Uri.parse('$_fallbackUrl/login');
-          debugPrint('🌐 Trying HTTP login: $fallbackUrl');
-          
-          final response = await _makeRequest(() => http.post(
-            fallbackUrl,
-            headers: _getHeaders(),
-            body: json.encode(requestBody),
-          ));
+        final response = await _makeRequest(() => http.post(
+          fallbackUrl,
+          headers: _getHeaders(),
+          body: json.encode(requestBody),
+        ));
 
-          final result = _handleResponse(response);
-          debugPrint('✅ HTTP fallback login response processed');
-          
-          return _normalizeLoginResponse(result);
-          
-        } catch (fallbackError) {
-          debugPrint('❌ HTTP fallback also failed: $fallbackError');
-          rethrow;
-        }
-      } else {
+        final result = _handleResponse(response);
+        return _normalizeLoginResponse(result);
+        
+      } catch (fallbackError) {
+        debugPrint('❌ HTTP fallback also failed: $fallbackError');
         rethrow;
       }
     }
@@ -175,7 +143,6 @@ class ApiService {
 
   Map<String, dynamic> _normalizeLoginResponse(Map<String, dynamic> response) {
     debugPrint('🔧 Normalizing login response...');
-    debugPrint('📊 Original response: $response');
     
     String? token;
     Map<String, dynamic>? user;
@@ -183,18 +150,14 @@ class ApiService {
     // Check various possible token locations
     if (response['token'] != null) {
       token = response['token'].toString();
-      debugPrint('✅ Found token in root');
     } else if (response['access_token'] != null) {
       token = response['access_token'].toString();
-      debugPrint('✅ Found access_token in root');
     } else if (response['data'] != null && response['data'] is Map) {
       final data = response['data'] as Map<String, dynamic>;
       if (data['token'] != null) {
         token = data['token'].toString();
-        debugPrint('✅ Found token in data');
       } else if (data['access_token'] != null) {
         token = data['access_token'].toString();
-        debugPrint('✅ Found access_token in data');
       }
     }
     
@@ -203,19 +166,14 @@ class ApiService {
       user = response['user'] is Map<String, dynamic> 
           ? response['user'] 
           : Map<String, dynamic>.from(response['user']);
-      debugPrint('✅ Found user in root');
     } else if (response['data'] != null && response['data'] is Map) {
       final data = response['data'] as Map<String, dynamic>;
       if (data['user'] != null) {
         user = data['user'] is Map<String, dynamic> 
             ? data['user'] 
             : Map<String, dynamic>.from(data['user']);
-        debugPrint('✅ Found user in data');
       }
     }
-    
-    debugPrint('🔍 Final extracted token: ${token?.substring(0, 20)}...');
-    debugPrint('🔍 Final extracted user: ${user?.keys}');
     
     return {
       'token': token,
@@ -352,7 +310,7 @@ class ApiService {
     return _handleResponse(response);
   }
 
-  // HISTORY ENDPOINTS
+  // HISTORY ENDPOINTS - ALL METHODS INCLUDED
   Future<List<Map<String, dynamic>>> getHistory(String token) async {
     debugPrint('📜 Getting history');
     final url = Uri.parse('$_baseUrl/history');
@@ -366,6 +324,172 @@ class ApiService {
     final history = responseData['data'] as List? ?? responseData as List? ?? [];
     
     return history.cast<Map<String, dynamic>>();
+  }
+
+  // Get scan history specifically
+  Future<Map<String, dynamic>> getScanHistory(String token) async {
+    debugPrint('📜 Getting scan history');
+    
+    try {
+      final url = Uri.parse('$_baseUrl/scan-history');
+      
+      final response = await _makeRequest(() => http.get(
+        url,
+        headers: _getHeaders(token: token),
+      ));
+
+      final responseData = _handleResponse(response);
+      
+      return {
+        'data': responseData['data'] as List? ?? responseData as List? ?? [],
+        'meta': responseData['meta'] ?? {},
+      };
+    } catch (e) {
+      debugPrint('⚠️ getScanHistory failed, using fallback: $e');
+      // Fallback to general history and filter
+      return await _getMockScanHistory(token);
+    }
+  }
+
+  // Get scan statistics
+  Future<Map<String, dynamic>> getScanStats(String token) async {
+    debugPrint('📊 Getting scan statistics');
+    
+    try {
+      final url = Uri.parse('$_baseUrl/scan-stats');
+      
+      final response = await _makeRequest(() => http.get(
+        url,
+        headers: _getHeaders(token: token),
+      ));
+
+      final responseData = _handleResponse(response);
+      
+      return {
+        'data': {
+          'total_scans': ConversionUtils.toInt(responseData['total_scans'] ?? responseData['data']?['total_scans'] ?? 0),
+          'total_coins_earned': ConversionUtils.toInt(responseData['total_coins_earned'] ?? responseData['data']?['total_coins_earned'] ?? 0),
+          'total_waste_weight': ConversionUtils.toDouble(responseData['total_waste_weight'] ?? responseData['data']?['total_waste_weight'] ?? 0.0),
+        }
+      };
+    } catch (e) {
+      debugPrint('⚠️ getScanStats failed, using fallback: $e');
+      // Fallback calculation
+      return await _getMockScanStats(token);
+    }
+  }
+
+  // Get transaction history
+  Future<Map<String, dynamic>> getTransactionHistory(String token) async {
+    debugPrint('💰 Getting transaction history');
+    
+    try {
+      final url = Uri.parse('$_baseUrl/transaction-history');
+      
+      final response = await _makeRequest(() => http.get(
+        url,
+        headers: _getHeaders(token: token),
+      ));
+
+      final responseData = _handleResponse(response);
+      
+      return {
+        'data': responseData['data'] as List? ?? responseData as List? ?? [],
+        'meta': responseData['meta'] ?? {},
+      };
+    } catch (e) {
+      debugPrint('⚠️ getTransactionHistory failed, using fallback: $e');
+      // Fallback to transactions endpoint
+      return await _getMockTransactionHistory(token);
+    }
+  }
+
+  // FALLBACK METHODS
+  Future<Map<String, dynamic>> _getMockScanHistory(String token) async {
+    debugPrint('🔄 Using fallback scan history data');
+    
+    try {
+      final history = await getHistory(token);
+      final scanHistory = history.where((item) => 
+        item['type'] == 'scan' || 
+        item['activity_type'] == 'scan' ||
+        item.containsKey('qr_code') ||
+        item.containsKey('dropbox_id') ||
+        item.containsKey('waste_type')
+      ).toList();
+      
+      return {
+        'data': scanHistory,
+        'meta': {'total': scanHistory.length},
+      };
+    } catch (e) {
+      debugPrint('❌ Fallback scan history also failed: $e');
+      return {'data': [], 'meta': {'total': 0}};
+    }
+  }
+
+  Future<Map<String, dynamic>> _getMockScanStats(String token) async {
+    debugPrint('🔄 Using fallback scan stats data');
+    
+    try {
+      final history = await getHistory(token);
+      int totalScans = 0;
+      int totalCoinsEarned = 0;
+      double totalWasteWeight = 0.0;
+      
+      for (var item in history) {
+        if (item['type'] == 'scan' || 
+            item['activity_type'] == 'scan' ||
+            item.containsKey('waste_type')) {
+          totalScans++;
+          totalCoinsEarned += ConversionUtils.toInt(item['coins_earned'] ?? item['eco_coins'] ?? 0);
+          totalWasteWeight += ConversionUtils.toDouble(item['weight'] ?? item['weight_g'] ?? 0);
+        }
+      }
+      
+      return {
+        'data': {
+          'total_scans': totalScans,
+          'total_coins_earned': totalCoinsEarned,
+          'total_waste_weight': totalWasteWeight,
+        }
+      };
+    } catch (e) {
+      debugPrint('❌ Fallback scan stats also failed: $e');
+      return {
+        'data': {
+          'total_scans': 0,
+          'total_coins_earned': 0,
+          'total_waste_weight': 0.0,
+        }
+      };
+    }
+  }
+
+  Future<Map<String, dynamic>> _getMockTransactionHistory(String token) async {
+    debugPrint('🔄 Using fallback transaction history data');
+    
+    try {
+      final transactions = await getTransactions(token);
+      final transactionData = transactions.map((t) => {
+        'id': t.id,
+        'type': t.type,
+        'type_label': t.typeDisplayName,
+        'amount_rp': t.amountRp,
+        'amount_coins': t.amountCoins,
+        'description': t.description,
+        'created_at': t.createdAt.toIso8601String(),
+        'is_income': t.isIncome,
+      }).toList();
+      
+      return {
+        'data': transactionData,
+        'meta': {'total': transactionData.length},
+      };
+    } catch (e) {
+      debugPrint('❌ Fallback transaction history also failed: $e');
+      return {'data': [], 'meta': {'total': 0}};
+    }
   }
 
   // ECOPAY/WALLET ENDPOINTS
@@ -449,7 +573,6 @@ class ApiService {
 
     final result = _handleResponse(response);
     
-    // Ensure we return success flag
     return {
       'success': true,
       'message': result['message'] ?? 'Berhasil menukar coins',

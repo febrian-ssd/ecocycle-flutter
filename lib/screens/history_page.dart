@@ -1,4 +1,4 @@
-// lib/screens/history_page.dart - FIXED DARK THEME & DATA
+// lib/screens/history_page.dart - FIXED WITH FALLBACK SUPPORT
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:ecocycle_app/providers/auth_provider.dart';
@@ -28,6 +28,13 @@ class _HistoryPageState extends State<HistoryPage> with TickerProviderStateMixin
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _tabController.addListener(() {
+      if (mounted) {
+        setState(() {
+          _selectedTabIndex = _tabController.index;
+        });
+      }
+    });
     _initAnimations();
     _loadData();
   }
@@ -56,18 +63,40 @@ class _HistoryPageState extends State<HistoryPage> with TickerProviderStateMixin
 
       setState(() => _isLoading = true);
 
-      // Load scan history and stats
-      final futures = await Future.wait([
-        _apiService.getScanHistory(token),
-        _apiService.getScanStats(token),
-        _apiService.getTransactionHistory(token),
-      ]);
+      // Load scan history, stats, and transaction history with fallback
+      Map<String, dynamic> scanHistoryData;
+      Map<String, dynamic> scanStatsData;
+      Map<String, dynamic> transactionHistoryData;
+
+      try {
+        // Try to get scan history
+        scanHistoryData = await _apiService.getScanHistory(token);
+      } catch (e) {
+        debugPrint('⚠️ getScanHistory failed, using fallback: $e');
+        scanHistoryData = await _getMockScanHistory(token);
+      }
+
+      try {
+        // Try to get scan stats
+        scanStatsData = await _apiService.getScanStats(token);
+      } catch (e) {
+        debugPrint('⚠️ getScanStats failed, using fallback: $e');
+        scanStatsData = await _getMockScanStats(token);
+      }
+
+      try {
+        // Try to get transaction history
+        transactionHistoryData = await _apiService.getTransactionHistory(token);
+      } catch (e) {
+        debugPrint('⚠️ getTransactionHistory failed, using fallback: $e');
+        transactionHistoryData = await _getMockTransactionHistory(token);
+      }
 
       if (mounted) {
         setState(() {
-          _scanHistory = List<Map<String, dynamic>>.from(futures[0]['data'] ?? []);
-          _scanStats = futures[1]['data'] ?? {};
-          _transactionHistory = List<Map<String, dynamic>>.from(futures[2]['data'] ?? []);
+          _scanHistory = List<Map<String, dynamic>>.from(scanHistoryData['data'] ?? []);
+          _scanStats = scanStatsData['data'] ?? {};
+          _transactionHistory = List<Map<String, dynamic>>.from(transactionHistoryData['data'] ?? []);
           _isLoading = false;
         });
         
@@ -79,6 +108,97 @@ class _HistoryPageState extends State<HistoryPage> with TickerProviderStateMixin
         setState(() => _isLoading = false);
         _showSnackBar('Gagal memuat riwayat: ${e.toString()}', isError: true);
       }
+    }
+  }
+
+  // FALLBACK METHODS
+  Future<Map<String, dynamic>> _getMockScanHistory(String token) async {
+    debugPrint('🔄 Using fallback scan history data');
+    
+    try {
+      // Use general history and filter for scan-related items
+      final history = await _apiService.getHistory(token);
+      final scanHistory = history.where((item) => 
+        item['type'] == 'scan' || 
+        item['activity_type'] == 'scan' ||
+        item.containsKey('qr_code') ||
+        item.containsKey('dropbox_id') ||
+        item.containsKey('waste_type')
+      ).toList();
+      
+      return {
+        'data': scanHistory,
+        'meta': {'total': scanHistory.length},
+      };
+    } catch (e) {
+      debugPrint('❌ Fallback scan history also failed: $e');
+      return {'data': [], 'meta': {'total': 0}};
+    }
+  }
+
+  Future<Map<String, dynamic>> _getMockScanStats(String token) async {
+    debugPrint('🔄 Using fallback scan stats data');
+    
+    try {
+      // Calculate stats from general history
+      final history = await _apiService.getHistory(token);
+      int totalScans = 0;
+      int totalCoinsEarned = 0;
+      double totalWasteWeight = 0.0;
+      
+      for (var item in history) {
+        if (item['type'] == 'scan' || 
+            item['activity_type'] == 'scan' ||
+            item.containsKey('waste_type')) {
+          totalScans++;
+          totalCoinsEarned += ConversionUtils.toInt(item['coins_earned'] ?? item['eco_coins'] ?? 0);
+          totalWasteWeight += ConversionUtils.toDouble(item['weight'] ?? item['weight_g'] ?? 0);
+        }
+      }
+      
+      return {
+        'data': {
+          'total_scans': totalScans,
+          'total_coins_earned': totalCoinsEarned,
+          'total_waste_weight': totalWasteWeight,
+        }
+      };
+    } catch (e) {
+      debugPrint('❌ Fallback scan stats also failed: $e');
+      return {
+        'data': {
+          'total_scans': 0,
+          'total_coins_earned': 0,
+          'total_waste_weight': 0.0,
+        }
+      };
+    }
+  }
+
+  Future<Map<String, dynamic>> _getMockTransactionHistory(String token) async {
+    debugPrint('🔄 Using fallback transaction history data');
+    
+    try {
+      // Use getTransactions method and format the response
+      final transactions = await _apiService.getTransactions(token);
+      final transactionData = transactions.map((t) => {
+        'id': t.id,
+        'type': t.type,
+        'type_label': t.typeDisplayName,
+        'amount_rp': t.amountRp,
+        'amount_coins': t.amountCoins,
+        'description': t.description,
+        'created_at': t.createdAt.toIso8601String(),
+        'is_income': t.isIncome,
+      }).toList();
+      
+      return {
+        'data': transactionData,
+        'meta': {'total': transactionData.length},
+      };
+    } catch (e) {
+      debugPrint('❌ Fallback transaction history also failed: $e');
+      return {'data': [], 'meta': {'total': 0}};
     }
   }
 
@@ -181,7 +301,7 @@ class _HistoryPageState extends State<HistoryPage> with TickerProviderStateMixin
             const SizedBox(width: 12),
             Expanded(child: _buildStatCard(
               'Sampah (kg)',
-              (_scanStats['total_waste_weight'] ?? 0.0).toStringAsFixed(1),
+              ((_scanStats['total_waste_weight'] ?? 0.0) / 1000).toStringAsFixed(1),
               Icons.delete,
               const Color(0xFF4CAF50),
             )),
@@ -257,7 +377,6 @@ class _HistoryPageState extends State<HistoryPage> with TickerProviderStateMixin
         labelColor: Colors.white,
         unselectedLabelColor: Colors.grey[400],
         labelStyle: const TextStyle(fontWeight: FontWeight.w600),
-        onTap: (index) => setState(() => _selectedTabIndex = index),
         tabs: const [
           Tab(
             icon: Icon(Icons.qr_code_scanner, size: 20),
@@ -305,12 +424,15 @@ class _HistoryPageState extends State<HistoryPage> with TickerProviderStateMixin
   }
 
   Widget _buildScanHistoryCard(Map<String, dynamic> history, int index) {
-    final isSuccess = history['status'] == 'success';
+    final isSuccess = (history['status'] ?? 'success') == 'success';
     final wasteType = history['waste_type'] ?? 'plastic';
-    final weight = ConversionUtils.toDouble(history['weight']);
-    final coinsEarned = ConversionUtils.toInt(history['coins_earned']);
+    final weight = ConversionUtils.toDouble(history['weight'] ?? history['weight_g'] ?? 0);
+    final coinsEarned = ConversionUtils.toInt(history['coins_earned'] ?? history['eco_coins'] ?? 0);
     final scanTime = DateTime.tryParse(history['scan_time'] ?? history['created_at'] ?? '');
-    final dropboxName = history['dropbox']?['location_name'] ?? 'Lokasi Tidak Diketahui';
+    final dropboxName = history['dropbox']?['location_name'] ?? 
+                       history['dropbox_location'] ?? 
+                       history['location'] ?? 
+                       'Lokasi Tidak Diketahui';
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -365,7 +487,7 @@ class _HistoryPageState extends State<HistoryPage> with TickerProviderStateMixin
                     ],
                   ),
                 ),
-                if (isSuccess)
+                if (isSuccess && coinsEarned > 0)
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
@@ -408,7 +530,7 @@ class _HistoryPageState extends State<HistoryPage> with TickerProviderStateMixin
                       Icon(Icons.scale, color: Colors.grey[400], size: 16),
                       const SizedBox(width: 8),
                       Text(
-                        'Berat: ${weight.toStringAsFixed(2)} kg',
+                        'Berat: ${weight.toStringAsFixed(2)} ${weight > 1000 ? 'kg' : 'g'}',
                         style: const TextStyle(color: Colors.white, fontSize: 14),
                       ),
                     ],
@@ -461,7 +583,7 @@ class _HistoryPageState extends State<HistoryPage> with TickerProviderStateMixin
     final amountCoins = ConversionUtils.toInt(transaction['amount_coins']);
     final isIncome = transaction['is_income'] ?? false;
     final createdAt = DateTime.tryParse(transaction['created_at'] ?? '');
-    final typeLabel = transaction['type_label'] ?? '';
+    final typeLabel = transaction['type_label'] ?? _getTypeDisplayName(type);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -505,16 +627,18 @@ class _HistoryPageState extends State<HistoryPage> with TickerProviderStateMixin
                       fontWeight: FontWeight.w600,
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    description,
-                    style: TextStyle(
-                      color: Colors.grey[400],
-                      fontSize: 12,
+                  if (description.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      description,
+                      style: TextStyle(
+                        color: Colors.grey[400],
+                        fontSize: 12,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
+                  ],
                   const SizedBox(height: 4),
                   Text(
                     createdAt?.toString().substring(0, 19) ?? '',
@@ -630,6 +754,18 @@ class _HistoryPageState extends State<HistoryPage> with TickerProviderStateMixin
       'organic': 'Organik',
     };
     return wasteTypes[type] ?? 'Tidak Diketahui';
+  }
+
+  String _getTypeDisplayName(String type) {
+    const Map<String, String> typeNames = {
+      'topup': 'Top Up',
+      'manual_topup': 'Top Up Manual',
+      'coin_exchange_to_rp': 'Tukar Koin',
+      'scan_reward': 'Reward Scan',
+      'transfer_out': 'Transfer Keluar',
+      'transfer_in': 'Transfer Masuk',
+    };
+    return typeNames[type] ?? type;
   }
 
   IconData _getTransactionIcon(String type) {
