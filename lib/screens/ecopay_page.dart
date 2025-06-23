@@ -1,3 +1,4 @@
+// lib/screens/ecopay_page.dart - Dark Elegant Theme
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:ecocycle_app/providers/auth_provider.dart';
@@ -5,27 +6,58 @@ import 'package:ecocycle_app/services/api_service.dart';
 import 'package:ecocycle_app/models/transaction.dart';
 import 'package:ecocycle_app/screens/transfer_screen.dart';
 import 'package:ecocycle_app/screens/tukar_koin_screen.dart';
-import 'package:ecocycle_app/screens/isi_saldo_screen.dart'; // FIXED: Use isi_saldo_screen
+import 'package:ecocycle_app/screens/isi_saldo_screen.dart';
 import 'package:ecocycle_app/utils/conversion_utils.dart';
 
 class EcoPayPage extends StatefulWidget {
-  const EcoPayPage({super.key}); // FIXED: Added super.key
+  const EcoPayPage({super.key});
 
   @override
   State<EcoPayPage> createState() => _EcoPayPageState();
 }
 
-class _EcoPayPageState extends State<EcoPayPage> {
+class _EcoPayPageState extends State<EcoPayPage> with TickerProviderStateMixin {
   final ApiService _apiService = ApiService();
   bool _isLoading = true;
   double _balanceRp = 0.0;
   int _balanceCoins = 0;
   List<Transaction> _transactions = [];
+  
+  late AnimationController _fadeController;
+  late AnimationController _slideController;
+  late Animation<double> _fadeAnimation;
+  late Animation<Offset> _slideAnimation;
 
   @override
   void initState() {
     super.initState();
+    _initAnimations();
     _loadWalletData();
+  }
+
+  void _initAnimations() {
+    _fadeController = AnimationController(
+      duration: const Duration(milliseconds: 1000),
+      vsync: this,
+    );
+    
+    _slideController = AnimationController(
+      duration: const Duration(milliseconds: 800),
+      vsync: this,
+    );
+    
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0)
+        .animate(CurvedAnimation(parent: _fadeController, curve: Curves.easeOut));
+    
+    _slideAnimation = Tween<Offset>(begin: const Offset(0, 0.3), end: Offset.zero)
+        .animate(CurvedAnimation(parent: _slideController, curve: Curves.easeOutCubic));
+  }
+
+  @override
+  void dispose() {
+    _fadeController.dispose();
+    _slideController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadWalletData() async {
@@ -42,6 +74,9 @@ class _EcoPayPageState extends State<EcoPayPage> {
             _transactions = transactions;
             _isLoading = false;
           });
+          
+          _fadeController.forward();
+          _slideController.forward();
         }
       }
     } catch (e) {
@@ -49,8 +84,13 @@ class _EcoPayPageState extends State<EcoPayPage> {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Gagal memuat data wallet: ${e.toString()}'),
-            backgroundColor: Colors.red,
+            content: Text(
+              'Gagal memuat data wallet: ${e.toString()}',
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+            backgroundColor: Colors.red[700],
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
         );
       }
@@ -65,125 +105,212 @@ class _EcoPayPageState extends State<EcoPayPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF2E7D32),
-      appBar: AppBar(
+      backgroundColor: const Color(0xFF121212),
+      body: RefreshIndicator(
+        onRefresh: _refreshData,
+        color: const Color(0xFF4CAF50),
+        backgroundColor: const Color(0xFF2A2A2A),
+        child: CustomScrollView(
+          slivers: [
+            _buildAppBar(),
+            _isLoading ? _buildLoadingSliver() : _buildContent(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAppBar() {
+    return SliverAppBar(
+      expandedHeight: 120,
+      pinned: true,
+      backgroundColor: const Color(0xFF1B5E20),
+      flexibleSpace: FlexibleSpaceBar(
+        centerTitle: true,
         title: const Text(
           'EcoPay',
           style: TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.bold,
+            fontSize: 20,
           ),
         ),
-        backgroundColor: const Color(0xFF2E7D32),
-        elevation: 0,
-        centerTitle: true,
-      ),
-      body: RefreshIndicator(
-        onRefresh: _refreshData,
-        child: _isLoading ? _buildLoadingWidget() : _buildContent(),
+        background: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Color(0xFF1B5E20),
+                Color(0xFF2E7D32),
+                Color(0xFF4CAF50),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
 
-  Widget _buildLoadingWidget() {
-    return const Center(
-      child: CircularProgressIndicator(
-        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+  Widget _buildLoadingSliver() {
+    return SliverFillRemaining(
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF4CAF50)),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Memuat data wallet...',
+              style: TextStyle(
+                color: Colors.grey[400],
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildContent() {
-    return SingleChildScrollView(
-      physics: const AlwaysScrollableScrollPhysics(),
-      child: Column(
-        children: [
-          _buildWalletCard(),
-          const SizedBox(height: 20),
-          _buildActionButtons(),
-          const SizedBox(height: 20),
-          _buildTransactionHistory(),
-        ],
+    return SliverToBoxAdapter(
+      child: FadeTransition(
+        opacity: _fadeAnimation,
+        child: SlideTransition(
+          position: _slideAnimation,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: [
+                _buildWalletCard(),
+                const SizedBox(height: 24),
+                _buildActionButtons(),
+                const SizedBox(height: 24),
+                _buildTransactionHistory(),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
 
   Widget _buildWalletCard() {
     return Container(
-      margin: const EdgeInsets.all(16),
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFF4CAF50), Color(0xFF2E7D32)],
+          colors: [
+            Color(0xFF2A2A2A),
+            Color(0xFF1A1A1A),
+          ],
         ),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: const Color(0xFF4CAF50).withValues(alpha: 0.3),
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.1), // FIXED: withValues instead of withOpacity
-            blurRadius: 8,
-            offset: const Offset(0, 4),
+            color: Colors.black.withValues(alpha: 0.3),
+            blurRadius: 15,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // EcoCoins Section
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                '$_balanceCoins',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 32,
-                  fontWeight: FontWeight.bold,
-                ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '$_balanceCoins',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 36,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const Text(
+                    'EcoCoins',
+                    style: TextStyle(
+                      color: Colors.grey,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
               ),
               Container(
-                padding: const EdgeInsets.all(8),
+                padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.2), // FIXED: withValues
-                  borderRadius: BorderRadius.circular(8),
+                  color: const Color(0xFF4CAF50).withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(12),
                 ),
                 child: const Icon(
                   Icons.eco,
-                  color: Colors.white,
-                  size: 24,
+                  color: Color(0xFF4CAF50),
+                  size: 28,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 4),
-          const Text(
-            'EcoCoins',
-            style: TextStyle(
-              color: Colors.white70,
-              fontSize: 16,
-            ),
+          
+          const SizedBox(height: 24),
+          const Divider(color: Color(0xFF3A3A3A)),
+          const SizedBox(height: 16),
+          
+          // Rupiah Balance Section
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF4CAF50).withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  Icons.account_balance_wallet,
+                  color: Color(0xFF4CAF50),
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Text(
+                'Saldo Anda',
+                style: TextStyle(
+                  color: Colors.grey,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 20),
-          const Text(
-            'Saldo Anda',
-            style: TextStyle(
-              color: Colors.white70,
-              fontSize: 14,
-            ),
-          ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 8),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.1), // FIXED: withValues
-              borderRadius: BorderRadius.circular(8),
+              color: const Color(0xFF1A1A1A),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFF3A3A3A)),
             ),
             child: Text(
               ConversionUtils.formatCurrency(_balanceRp),
               style: const TextStyle(
                 color: Colors.white,
-                fontSize: 20,
-                fontWeight: FontWeight.w600,
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
               ),
             ),
           ),
@@ -194,16 +321,16 @@ class _EcoPayPageState extends State<EcoPayPage> {
 
   Widget _buildActionButtons() {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: const Color(0xFF2A2A2A),
         borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF3A3A3A)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05), // FIXED: withValues
+            color: Colors.black.withValues(alpha: 0.2),
             blurRadius: 8,
-            offset: const Offset(0, 2),
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -213,19 +340,19 @@ class _EcoPayPageState extends State<EcoPayPage> {
           _buildActionButton(
             icon: Icons.add_circle_outline,
             label: 'Top Up',
-            color: Colors.blue,
+            color: const Color(0xFF4CAF50),
             onTap: () => _navigateToTopup(),
           ),
           _buildActionButton(
             icon: Icons.send,
             label: 'Transfer',
-            color: Colors.orange,
+            color: const Color(0xFF2196F3),
             onTap: () => _navigateToTransfer(),
           ),
           _buildActionButton(
             icon: Icons.swap_horiz,
             label: 'Tukar Koin',
-            color: Colors.green,
+            color: const Color(0xFFFF9800),
             onTap: () => _navigateToTukarKoin(),
           ),
         ],
@@ -247,8 +374,20 @@ class _EcoPayPageState extends State<EcoPayPage> {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: color,
-              borderRadius: BorderRadius.circular(12),
+              gradient: LinearGradient(
+                colors: [
+                  color.withValues(alpha: 0.8),
+                  color,
+                ],
+              ),
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: color.withValues(alpha: 0.3),
+                  blurRadius: 8,
+                  offset: const Offset(0, 4),
+                ),
+              ],
             ),
             child: Icon(
               icon,
@@ -261,8 +400,8 @@ class _EcoPayPageState extends State<EcoPayPage> {
             label,
             style: const TextStyle(
               fontSize: 12,
-              fontWeight: FontWeight.w500,
-              color: Colors.black87,
+              fontWeight: FontWeight.w600,
+              color: Colors.white,
             ),
           ),
         ],
@@ -272,15 +411,15 @@ class _EcoPayPageState extends State<EcoPayPage> {
 
   Widget _buildTransactionHistory() {
     return Container(
-      margin: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: const Color(0xFF2A2A2A),
         borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF3A3A3A)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05), // FIXED: withValues
+            color: Colors.black.withValues(alpha: 0.2),
             blurRadius: 8,
-            offset: const Offset(0, 2),
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -288,7 +427,7 @@ class _EcoPayPageState extends State<EcoPayPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(20),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -297,22 +436,18 @@ class _EcoPayPageState extends State<EcoPayPage> {
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
-                    color: Colors.black87,
+                    color: Colors.white,
                   ),
                 ),
-                GestureDetector(
-                  onTap: () {
-                    // Navigate to full transaction history
-                  },
-                  child: const Icon(
-                    Icons.keyboard_arrow_down,
-                    color: Colors.grey,
-                  ),
+                Icon(
+                  Icons.history,
+                  color: Colors.grey[400],
+                  size: 20,
                 ),
               ],
             ),
           ),
-          const Divider(height: 1),
+          const Divider(color: Color(0xFF3A3A3A), height: 1),
           _transactions.isEmpty
               ? _buildEmptyTransactions()
               : _buildTransactionList(),
@@ -323,21 +458,28 @@ class _EcoPayPageState extends State<EcoPayPage> {
 
   Widget _buildEmptyTransactions() {
     return Container(
-      padding: const EdgeInsets.all(32),
+      padding: const EdgeInsets.all(40),
       child: Column(
         children: [
-          Icon(
-            Icons.receipt_long,
-            size: 64,
-            color: Colors.grey[400],
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1A1A1A),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Icon(
+              Icons.receipt_long,
+              size: 48,
+              color: Colors.grey[600],
+            ),
           ),
           const SizedBox(height: 16),
           Text(
             'Belum ada transaksi',
             style: TextStyle(
               fontSize: 16,
-              color: Colors.grey[600],
-              fontWeight: FontWeight.w500,
+              color: Colors.grey[400],
+              fontWeight: FontWeight.w600,
             ),
           ),
           const SizedBox(height: 8),
@@ -346,6 +488,7 @@ class _EcoPayPageState extends State<EcoPayPage> {
             style: TextStyle(
               fontSize: 14,
               color: Colors.grey[500],
+              fontWeight: FontWeight.w500,
             ),
           ),
         ],
@@ -354,14 +497,14 @@ class _EcoPayPageState extends State<EcoPayPage> {
   }
 
   Widget _buildTransactionList() {
-    // Show only recent 5 transactions
     final recentTransactions = _transactions.take(5).toList();
     
     return ListView.separated(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       itemCount: recentTransactions.length,
-      separatorBuilder: (context, index) => const Divider(height: 1),
+      separatorBuilder: (context, index) => 
+          const Divider(color: Color(0xFF3A3A3A), height: 1),
       itemBuilder: (context, index) {
         final transaction = recentTransactions[index];
         return _buildTransactionItem(transaction);
@@ -371,7 +514,7 @@ class _EcoPayPageState extends State<EcoPayPage> {
 
   Widget _buildTransactionItem(Transaction transaction) {
     final isIncome = transaction.isIncome;
-    final color = isIncome ? Colors.green : Colors.red;
+    final color = isIncome ? const Color(0xFF4CAF50) : const Color(0xFFF44336);
     final sign = isIncome ? '+' : '-';
     
     IconData icon;
@@ -396,41 +539,48 @@ class _EcoPayPageState extends State<EcoPayPage> {
     }
 
     return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
       leading: Container(
-        padding: const EdgeInsets.all(8),
+        padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.1), // FIXED: withValues
-          borderRadius: BorderRadius.circular(8),
+          color: color.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(10),
         ),
         child: Icon(
           icon,
           color: color,
-          size: 24,
+          size: 20,
         ),
       ),
       title: Text(
         transaction.typeDisplayName,
         style: const TextStyle(
           fontWeight: FontWeight.w600,
-          fontSize: 16,
+          fontSize: 15,
+          color: Colors.white,
         ),
       ),
       subtitle: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (transaction.description.isNotEmpty)
+          if (transaction.description.isNotEmpty) ...[
+            const SizedBox(height: 2),
             Text(
               transaction.description,
               style: TextStyle(
-                color: Colors.grey[600],
-                fontSize: 14,
+                color: Colors.grey[400],
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
               ),
             ),
+          ],
+          const SizedBox(height: 4),
           Text(
             transaction.formattedDate,
             style: TextStyle(
               color: Colors.grey[500],
               fontSize: 12,
+              fontWeight: FontWeight.w500,
             ),
           ),
         ],
@@ -445,17 +595,20 @@ class _EcoPayPageState extends State<EcoPayPage> {
               style: TextStyle(
                 color: color,
                 fontWeight: FontWeight.bold,
-                fontSize: 16,
+                fontSize: 14,
               ),
             ),
-          if (transaction.amountCoins > 0)
+          if (transaction.amountCoins > 0) ...[
+            const SizedBox(height: 2),
             Text(
               '$sign${transaction.amountCoins} coins',
               style: TextStyle(
-                color: Colors.grey[600],
+                color: Colors.grey[400],
                 fontSize: 12,
+                fontWeight: FontWeight.w600,
               ),
             ),
+          ],
         ],
       ),
     );
@@ -464,7 +617,18 @@ class _EcoPayPageState extends State<EcoPayPage> {
   void _navigateToTopup() async {
     final result = await Navigator.push(
       context,
-      MaterialPageRoute(builder: (context) => const IsiSaldoScreen()), // FIXED: Changed to IsiSaldoScreen
+      PageRouteBuilder(
+        pageBuilder: (context, animation, secondaryAnimation) => const IsiSaldoScreen(),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return SlideTransition(
+            position: Tween<Offset>(
+              begin: const Offset(1.0, 0.0),
+              end: Offset.zero,
+            ).animate(animation),
+            child: child,
+          );
+        },
+      ),
     );
     
     if (result == true) {
@@ -475,7 +639,18 @@ class _EcoPayPageState extends State<EcoPayPage> {
   void _navigateToTransfer() async {
     final result = await Navigator.push(
       context,
-      MaterialPageRoute(builder: (context) => const TransferScreen()),
+      PageRouteBuilder(
+        pageBuilder: (context, animation, secondaryAnimation) => const TransferScreen(),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return SlideTransition(
+            position: Tween<Offset>(
+              begin: const Offset(1.0, 0.0),
+              end: Offset.zero,
+            ).animate(animation),
+            child: child,
+          );
+        },
+      ),
     );
     
     if (result == true) {
@@ -486,7 +661,18 @@ class _EcoPayPageState extends State<EcoPayPage> {
   void _navigateToTukarKoin() async {
     final result = await Navigator.push(
       context,
-      MaterialPageRoute(builder: (context) => const TukarKoinScreen()),
+      PageRouteBuilder(
+        pageBuilder: (context, animation, secondaryAnimation) => const TukarKoinScreen(),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return SlideTransition(
+            position: Tween<Offset>(
+              begin: const Offset(1.0, 0.0),
+              end: Offset.zero,
+            ).animate(animation),
+            child: child,
+          );
+        },
+      ),
     );
     
     if (result == true) {

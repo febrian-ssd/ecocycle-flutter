@@ -5,7 +5,7 @@ import 'package:ecocycle_app/services/api_service.dart';
 import 'package:ecocycle_app/utils/conversion_utils.dart';
 
 class TransferScreen extends StatefulWidget {
-  const TransferScreen({super.key}); // FIXED: Added const constructor
+  const TransferScreen({super.key});
 
   @override
   State<TransferScreen> createState() => _TransferScreenState();
@@ -49,7 +49,7 @@ class _TransferScreenState extends State<TransferScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Gagal memuat saldo: $e'),
-            backgroundColor: Colors.red,
+            backgroundColor: Colors.red[700],
           ),
         );
       }
@@ -82,20 +82,31 @@ class _TransferScreenState extends State<TransferScreen> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Transfer berhasil!'),
-            backgroundColor: Colors.green,
+          SnackBar(
+            content: const Text(
+              'Transfer berhasil!',
+              style: TextStyle(fontWeight: FontWeight.w600),
+            ),
+            backgroundColor: Colors.green[700],
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
         );
         
-        Navigator.pop(context, true); // Return true to indicate success
+        Navigator.pop(context, true);
       }
     } catch (e) {
       if (mounted) {
+        String errorMessage = e.toString().replaceFirst('Exception: ', '');
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Transfer gagal: $e'),
-            backgroundColor: Colors.red,
+            content: Text(
+              'Transfer gagal: $errorMessage',
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+            backgroundColor: Colors.red[700],
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
         );
       }
@@ -115,9 +126,10 @@ class _TransferScreenState extends State<TransferScreen> {
           style: TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.bold,
+            fontSize: 20,
           ),
         ),
-        backgroundColor: const Color(0xFF2E7D32),
+        backgroundColor: const Color(0xFF1B5E20),
         elevation: 0,
         centerTitle: true,
         leading: IconButton(
@@ -125,7 +137,7 @@ class _TransferScreenState extends State<TransferScreen> {
           onPressed: () => Navigator.pop(context),
         ),
       ),
-      backgroundColor: const Color(0xFF2E7D32),
+      backgroundColor: const Color(0xFF1B5E20),
       body: Column(
         children: [
           _buildBalanceCard(),
@@ -133,7 +145,7 @@ class _TransferScreenState extends State<TransferScreen> {
             child: Container(
               margin: const EdgeInsets.only(top: 20),
               decoration: const BoxDecoration(
-                color: Colors.white,
+                color: Color(0xFF121212),
                 borderRadius: BorderRadius.only(
                   topLeft: Radius.circular(24),
                   topRight: Radius.circular(24),
@@ -152,16 +164,16 @@ class _TransferScreenState extends State<TransferScreen> {
       margin: const EdgeInsets.all(16),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.1), // FIXED: withValues
+        color: Colors.white.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.2)), // FIXED: withValues
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
       ),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.2), // FIXED: withValues
+              color: Colors.white.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(12),
             ),
             child: const Icon(
@@ -180,6 +192,7 @@ class _TransferScreenState extends State<TransferScreen> {
                   style: TextStyle(
                     color: Colors.white70,
                     fontSize: 14,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -212,7 +225,7 @@ class _TransferScreenState extends State<TransferScreen> {
               style: TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
-                color: Colors.black87,
+                color: Colors.white,
               ),
             ),
             const SizedBox(height: 8),
@@ -220,7 +233,8 @@ class _TransferScreenState extends State<TransferScreen> {
               'Kirim uang ke sesama pengguna EcoCycle',
               style: TextStyle(
                 fontSize: 16,
-                color: Colors.grey[600],
+                color: Colors.grey[400],
+                fontWeight: FontWeight.w500,
               ),
             ),
             const SizedBox(height: 32),
@@ -231,30 +245,38 @@ class _TransferScreenState extends State<TransferScreen> {
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w600,
-                color: Colors.black87,
+                color: Colors.white,
               ),
             ),
             const SizedBox(height: 8),
             TextFormField(
               controller: _emailController,
               keyboardType: TextInputType.emailAddress,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w500,
+              ),
               decoration: InputDecoration(
-                hintText: 'Masukkan email penerima',
-                prefixIcon: const Icon(Icons.email_outlined),
+                hintText: 'contoh@email.com',
+                hintStyle: TextStyle(
+                  color: Colors.grey[500],
+                  fontWeight: FontWeight.w400,
+                ),
+                prefixIcon: const Icon(Icons.email_outlined, color: Colors.grey),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: Colors.grey[300]!),
+                  borderSide: BorderSide(color: Colors.grey[600]!),
                 ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: Colors.grey[300]!),
+                  borderSide: BorderSide(color: Colors.grey[600]!),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: Color(0xFF2E7D32), width: 2),
+                  borderSide: const BorderSide(color: Color(0xFF4CAF50), width: 2),
                 ),
                 filled: true,
-                fillColor: Colors.grey[50],
+                fillColor: const Color(0xFF2A2A2A),
               ),
               validator: (value) {
                 if (value == null || value.isEmpty) {
@@ -274,31 +296,43 @@ class _TransferScreenState extends State<TransferScreen> {
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w600,
-                color: Colors.black87,
+                color: Colors.white,
               ),
             ),
             const SizedBox(height: 8),
             TextFormField(
               controller: _amountController,
               keyboardType: TextInputType.number,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w500,
+              ),
               decoration: InputDecoration(
-                hintText: 'Masukkan jumlah transfer',
-                prefixIcon: const Icon(Icons.payments_outlined),
+                hintText: 'Masukkan jumlah',
+                hintStyle: TextStyle(
+                  color: Colors.grey[500],
+                  fontWeight: FontWeight.w400,
+                ),
+                prefixIcon: const Icon(Icons.payments_outlined, color: Colors.grey),
                 prefixText: 'Rp ',
+                prefixStyle: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w600,
+                ),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: Colors.grey[300]!),
+                  borderSide: BorderSide(color: Colors.grey[600]!),
                 ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: Colors.grey[300]!),
+                  borderSide: BorderSide(color: Colors.grey[600]!),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: Color(0xFF2E7D32), width: 2),
+                  borderSide: const BorderSide(color: Color(0xFF4CAF50), width: 2),
                 ),
                 filled: true,
-                fillColor: Colors.grey[50],
+                fillColor: const Color(0xFF2A2A2A),
               ),
               validator: (value) {
                 if (value == null || value.isEmpty) {
@@ -326,30 +360,38 @@ class _TransferScreenState extends State<TransferScreen> {
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w600,
-                color: Colors.black87,
+                color: Colors.white,
               ),
             ),
             const SizedBox(height: 8),
             TextFormField(
               controller: _descriptionController,
               maxLines: 3,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w500,
+              ),
               decoration: InputDecoration(
                 hintText: 'Tulis catatan untuk transfer ini...',
-                prefixIcon: const Icon(Icons.note_outlined),
+                hintStyle: TextStyle(
+                  color: Colors.grey[500],
+                  fontWeight: FontWeight.w400,
+                ),
+                prefixIcon: const Icon(Icons.note_outlined, color: Colors.grey),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: Colors.grey[300]!),
+                  borderSide: BorderSide(color: Colors.grey[600]!),
                 ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: Colors.grey[300]!),
+                  borderSide: BorderSide(color: Colors.grey[600]!),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: Color(0xFF2E7D32), width: 2),
+                  borderSide: const BorderSide(color: Color(0xFF4CAF50), width: 2),
                 ),
                 filled: true,
-                fillColor: Colors.grey[50],
+                fillColor: const Color(0xFF2A2A2A),
               ),
             ),
             const SizedBox(height: 32),
@@ -361,13 +403,13 @@ class _TransferScreenState extends State<TransferScreen> {
               child: ElevatedButton(
                 onPressed: _isLoading ? null : _performTransfer,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF2E7D32),
+                  backgroundColor: const Color(0xFF4CAF50),
                   foregroundColor: Colors.white,
                   elevation: 0,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),
                   ),
-                  disabledBackgroundColor: Colors.grey[300],
+                  disabledBackgroundColor: Colors.grey[700],
                 ),
                 child: _isLoading
                     ? const SizedBox(
@@ -393,15 +435,15 @@ class _TransferScreenState extends State<TransferScreen> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.blue[50],
+                color: const Color(0xFF2A2A2A),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.blue[200]!),
+                border: Border.all(color: Colors.blue[800]!),
               ),
               child: Row(
                 children: [
                   Icon(
                     Icons.info_outline,
-                    color: Colors.blue[600],
+                    color: Colors.blue[400],
                     size: 20,
                   ),
                   const SizedBox(width: 12),
@@ -410,7 +452,8 @@ class _TransferScreenState extends State<TransferScreen> {
                       'Transfer akan diproses secara real-time. Pastikan email penerima sudah terdaftar di EcoCycle.',
                       style: TextStyle(
                         fontSize: 14,
-                        color: Colors.blue[800],
+                        color: Colors.blue[300],
+                        fontWeight: FontWeight.w500,
                       ),
                     ),
                   ),
