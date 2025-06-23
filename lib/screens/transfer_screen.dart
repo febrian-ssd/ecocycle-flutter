@@ -1,48 +1,35 @@
-// lib/screens/transfer_screen.dart
-
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'package:intl/intl.dart';
 import 'package:ecocycle_app/providers/auth_provider.dart';
 import 'package:ecocycle_app/services/api_service.dart';
+import 'package:ecocycle_app/utils/conversion_utils.dart';
 
 class TransferScreen extends StatefulWidget {
-  const TransferScreen({super.key});
-  
   @override
-  State<TransferScreen> createState() => _TransferScreenState();
+  _TransferScreenState createState() => _TransferScreenState();
 }
 
-class _TransferScreenState extends State<TransferScreen> with TickerProviderStateMixin {
-  final _destinationController = TextEditingController();
-  final _amountController = TextEditingController();
+class _TransferScreenState extends State<TransferScreen> {
   final ApiService _apiService = ApiService();
-  final _rpFormatter = NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0);
+  final _formKey = GlobalKey<FormState>();
+  final _emailController = TextEditingController();
+  final _amountController = TextEditingController();
+  final _descriptionController = TextEditingController();
   
   bool _isLoading = false;
-  double _currentBalance = 0;
-  late AnimationController _animationController;
-  late Animation<double> _scaleAnimation;
+  double _currentBalance = 0.0;
 
   @override
   void initState() {
     super.initState();
-    _animationController = AnimationController(
-      duration: const Duration(milliseconds: 300),
-      vsync: this,
-    );
-    _scaleAnimation = Tween<double>(begin: 1.0, end: 0.95).animate(
-      CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
-    );
     _loadCurrentBalance();
   }
 
   @override
   void dispose() {
-    _destinationController.dispose();
+    _emailController.dispose();
     _amountController.dispose();
-    _animationController.dispose();
+    _descriptionController.dispose();
     super.dispose();
   }
 
@@ -52,305 +39,157 @@ class _TransferScreenState extends State<TransferScreen> with TickerProviderStat
       if (token != null) {
         final walletData = await _apiService.getWallet(token);
         setState(() {
-          _currentBalance = (walletData['balance_rp'] ?? 0).toDouble();
+          _currentBalance = ConversionUtils.toDouble(walletData['balance_rp']);
         });
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Gagal memuat saldo: $e')),
+          SnackBar(
+            content: Text('Gagal memuat saldo: $e'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     }
   }
 
-  Future<void> _confirmTransfer() async {
-    if (_destinationController.text.isEmpty || _amountController.text.isEmpty) {
-      _showErrorDialog('Mohon lengkapi semua field yang diperlukan.');
-      return;
-    }
-
-    final amount = double.tryParse(_amountController.text.replaceAll(',', ''));
-    if (amount == null || amount <= 0) {
-      _showErrorDialog('Nominal transfer tidak valid.');
-      return;
-    }
-
-    if (amount > _currentBalance) {
-      _showErrorDialog('Saldo Anda tidak mencukupi untuk transfer ini.');
-      return;
-    }
-
-    if (amount < 10000) {
-      _showErrorDialog('Nominal transfer minimal Rp 10.000');
-      return;
-    }
-
-    // Show confirmation dialog
-    final confirmed = await _showConfirmationDialog(amount);
-    if (!confirmed) return;
+  Future<void> _performTransfer() async {
+    if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isLoading = true);
-    _animationController.forward();
 
     try {
       final token = Provider.of<AuthProvider>(context, listen: false).token;
-      if (token == null) throw Exception('User not authenticated.');
+      if (token == null) {
+        throw Exception('Token tidak ditemukan');
+      }
+
+      final amount = ConversionUtils.toDouble(_amountController.text);
+      
+      if (amount > _currentBalance) {
+        throw Exception('Saldo tidak mencukupi');
+      }
 
       await _apiService.transfer(
-        token, 
-        amount: amount.toInt(), 
-        destination: _destinationController.text
+        token,
+        email: _emailController.text.trim(),
+        amount: amount,
+        description: _descriptionController.text.trim(),
       );
 
       if (mounted) {
-        // Update local balance
-        setState(() {
-          _currentBalance -= amount;
-        });
-
-        _showSuccessDialog(amount);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Transfer berhasil!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        
+        Navigator.pop(context, true); // Return true to indicate success
       }
     } catch (e) {
       if (mounted) {
-        _showErrorDialog(e.toString().replaceFirst("Exception: ", ""));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Transfer gagal: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
-        _animationController.reverse();
       }
     }
-  }
-
-  Future<bool> _showConfirmationDialog(double amount) async {
-    return await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF2A2A2A),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text(
-          'Konfirmasi Transfer',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Anda akan mentransfer:',
-              style: TextStyle(color: Colors.grey[300]),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              _rpFormatter.format(amount),
-              style: const TextStyle(
-                color: Colors.orange,
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Ke: ${_destinationController.text}',
-              style: TextStyle(color: Colors.grey[300]),
-            ),
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.orange.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.orange.withOpacity(0.3)),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.info_outline, color: Colors.orange, size: 20),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Transfer tidak dapat dibatalkan',
-                      style: TextStyle(color: Colors.orange[300], fontSize: 12),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: Text(
-              'Batal',
-              style: TextStyle(color: Colors.grey[400]),
-            ),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.orange,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            ),
-            child: const Text('Konfirmasi', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    ) ?? false;
-  }
-
-  void _showSuccessDialog(double amount) {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF2A2A2A),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: const BoxDecoration(
-                color: Colors.green,
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(Icons.check, color: Colors.white, size: 32),
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'Transfer Berhasil!',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              _rpFormatter.format(amount),
-              style: const TextStyle(
-                color: Colors.green,
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'telah berhasil ditransfer',
-              style: TextStyle(color: Colors.grey[300]),
-            ),
-          ],
-        ),
-        actions: [
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                Navigator.of(context).pop(true); // Return to EcoPay with refresh signal
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              ),
-              child: const Text('Selesai', style: TextStyle(color: Colors.white)),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showErrorDialog(String message) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF2A2A2A),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Row(
-          children: [
-            Icon(Icons.error_outline, color: Colors.red),
-            SizedBox(width: 8),
-            Text('Error', style: TextStyle(color: Colors.white)),
-          ],
-        ),
-        content: Text(message, style: const TextStyle(color: Colors.white)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('OK', style: TextStyle(color: Colors.orange)),
-          ),
-        ],
-      ),
-    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF1A1A1A),
       appBar: AppBar(
         title: const Text(
           'Transfer',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+          ),
         ),
-        backgroundColor: Colors.transparent,
+        backgroundColor: const Color(0xFF2E7D32),
         elevation: 0,
-        iconTheme: const IconThemeData(color: Colors.white),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildBalanceCard(),
-            const SizedBox(height: 24),
-            _buildTransferForm(),
-            const SizedBox(height: 40),
-            _buildTransferButton(),
-          ],
+        centerTitle: true,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
         ),
+      ),
+      backgroundColor: const Color(0xFF2E7D32),
+      body: Column(
+        children: [
+          _buildBalanceCard(),
+          Expanded(
+            child: Container(
+              margin: const EdgeInsets.only(top: 20),
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(24),
+                  topRight: Radius.circular(24),
+                ),
+              ),
+              child: _buildTransferForm(),
+            ),
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildBalanceCard() {
     return Container(
-      width: double.infinity,
+      margin: const EdgeInsets.all(16),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFF004d00), Color(0xFF006600)],
-        ),
+        color: Colors.white.withOpacity(0.1),
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.3),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        border: Border.all(color: Colors.white.withOpacity(0.2)),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          const Text(
-            'Saldo Tersedia',
-            style: TextStyle(
-              color: Colors.white70,
-              fontSize: 14,
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(
+              Icons.account_balance_wallet,
+              color: Colors.white,
+              size: 24,
             ),
           ),
-          const SizedBox(height: 8),
-          Text(
-            _rpFormatter.format(_currentBalance),
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 28,
-              fontWeight: FontWeight.bold,
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Saldo Tersedia',
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 14,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  ConversionUtils.formatCurrency(_currentBalance),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -359,169 +198,226 @@ class _TransferScreenState extends State<TransferScreen> with TickerProviderStat
   }
 
   Widget _buildTransferForm() {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: const Color(0xFF2A2A2A),
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.2),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Detail Transfer',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 20),
-          _buildTextField(
-            'Nomor Rekening / E-Wallet',
-            'Masukkan nomor tujuan',
-            TextInputType.text,
-            _destinationController,
-            Icons.account_balance,
-          ),
-          const SizedBox(height: 16),
-          _buildTextField(
-            'Nominal Transfer',
-            'Masukkan nominal (min. Rp 10.000)',
-            TextInputType.number,
-            _amountController,
-            Icons.payments,
-            formatCurrency: true,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTextField(
-    String label,
-    String hint,
-    TextInputType keyboardType,
-    TextEditingController controller,
-    IconData icon, {
-    bool formatCurrency = false,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        const SizedBox(height: 8),
-        TextField(
-          controller: controller,
-          keyboardType: keyboardType,
-          style: const TextStyle(color: Colors.white, fontSize: 16),
-          inputFormatters: formatCurrency
-              ? [
-                  FilteringTextInputFormatter.digitsOnly,
-                  _CurrencyInputFormatter(),
-                ]
-              : null,
-          decoration: InputDecoration(
-            hintText: hint,
-            hintStyle: TextStyle(color: Colors.grey[400]),
-            prefixIcon: Icon(icon, color: Colors.grey[400]),
-            filled: true,
-            fillColor: const Color(0xFF1A1A1A),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide.none,
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Colors.orange, width: 2),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildTransferButton() {
-    return AnimatedBuilder(
-      animation: _scaleAnimation,
-      builder: (context, child) {
-        return Transform.scale(
-          scale: _scaleAnimation.value,
-          child: SizedBox(
-            width: double.infinity,
-            height: 56,
-            child: ElevatedButton(
-              onPressed: _isLoading ? null : _confirmTransfer,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.orange,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                elevation: _isLoading ? 0 : 8,
-                shadowColor: Colors.orange.withOpacity(0.3),
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Form(
+        key: _formKey,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Transfer ke Pengguna Lain',
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: Colors.black87,
               ),
-              child: _isLoading
-                  ? const SizedBox(
-                      height: 24,
-                      width: 24,
-                      child: CircularProgressIndicator(
-                        color: Colors.white,
-                        strokeWidth: 3,
-                      ),
-                    )
-                  : const Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.send, color: Colors.white),
-                        SizedBox(width: 8),
-                        Text(
-                          'Transfer Sekarang',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
             ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _CurrencyInputFormatter extends TextInputFormatter {
-  @override
-  TextEditingValue formatEditUpdate(
-    TextEditingValue oldValue,
-    TextEditingValue newValue,
-  ) {
-    if (newValue.text.isEmpty) {
-      return newValue;
-    }
-
-    final int value = int.tryParse(newValue.text.replaceAll(',', '')) ?? 0;
-    final String formatted = NumberFormat('#,###', 'id_ID').format(value);
-
-    return TextEditingValue(
-      text: formatted,
-      selection: TextSelection.collapsed(offset: formatted.length),
+            const SizedBox(height: 8),
+            Text(
+              'Kirim uang ke sesama pengguna EcoCycle',
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.grey[600],
+              ),
+            ),
+            const SizedBox(height: 32),
+            
+            // Email Field
+            const Text(
+              'Email Penerima',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: Colors.black87,
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextFormField(
+              controller: _emailController,
+              keyboardType: TextInputType.emailAddress,
+              decoration: InputDecoration(
+                hintText: 'Masukkan email penerima',
+                prefixIcon: const Icon(Icons.email_outlined),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Colors.grey[300]!),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Colors.grey[300]!),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: Color(0xFF2E7D32), width: 2),
+                ),
+                filled: true,
+                fillColor: Colors.grey[50],
+              ),
+              validator: (value) {
+                if (value == null || value.isEmpty) {
+                  return 'Email penerima harus diisi';
+                }
+                if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value)) {
+                  return 'Format email tidak valid';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 24),
+            
+            // Amount Field
+            const Text(
+              'Jumlah Transfer',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: Colors.black87,
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextFormField(
+              controller: _amountController,
+              keyboardType: TextInputType.number,
+              decoration: InputDecoration(
+                hintText: 'Masukkan jumlah transfer',
+                prefixIcon: const Icon(Icons.payments_outlined),
+                prefixText: 'Rp ',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Colors.grey[300]!),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Colors.grey[300]!),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: Color(0xFF2E7D32), width: 2),
+                ),
+                filled: true,
+                fillColor: Colors.grey[50],
+              ),
+              validator: (value) {
+                if (value == null || value.isEmpty) {
+                  return 'Jumlah transfer harus diisi';
+                }
+                
+                final amount = ConversionUtils.toDouble(value);
+                if (amount <= 0) {
+                  return 'Jumlah transfer harus lebih dari 0';
+                }
+                if (amount > _currentBalance) {
+                  return 'Saldo tidak mencukupi';
+                }
+                if (amount < 1000) {
+                  return 'Minimal transfer Rp 1.000';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 24),
+            
+            // Description Field
+            const Text(
+              'Catatan (Opsional)',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: Colors.black87,
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextFormField(
+              controller: _descriptionController,
+              maxLines: 3,
+              decoration: InputDecoration(
+                hintText: 'Tulis catatan untuk transfer ini...',
+                prefixIcon: const Icon(Icons.note_outlined),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Colors.grey[300]!),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Colors.grey[300]!),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: Color(0xFF2E7D32), width: 2),
+                ),
+                filled: true,
+                fillColor: Colors.grey[50],
+              ),
+            ),
+            const SizedBox(height: 32),
+            
+            // Transfer Button
+            SizedBox(
+              width: double.infinity,
+              height: 56,
+              child: ElevatedButton(
+                onPressed: _isLoading ? null : _performTransfer,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF2E7D32),
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  disabledBackgroundColor: Colors.grey[300],
+                ),
+                child: _isLoading
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                        ),
+                      )
+                    : const Text(
+                        'Transfer Sekarang',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            
+            // Info Card
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.blue[50],
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.blue[200]!),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.info_outline,
+                    color: Colors.blue[600],
+                    size: 20,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Transfer akan diproses secara real-time. Pastikan email penerima sudah terdaftar di EcoCycle.',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.blue[800],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

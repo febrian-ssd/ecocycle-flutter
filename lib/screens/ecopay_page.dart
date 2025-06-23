@@ -1,30 +1,26 @@
-// lib/screens/ecopay_page.dart
-
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:ecocycle_app/providers/auth_provider.dart';
 import 'package:ecocycle_app/services/api_service.dart';
 import 'package:ecocycle_app/models/transaction.dart';
-import 'package:ecocycle_app/screens/isi_saldo_screen.dart';
 import 'package:ecocycle_app/screens/transfer_screen.dart';
 import 'package:ecocycle_app/screens/tukar_koin_screen.dart';
+import 'package:ecocycle_app/screens/isi_saldo_screen.dart'; // FIXED: Changed to isi_saldo_screen
+import 'package:ecocycle_app/utils/conversion_utils.dart';
 
 class EcoPayPage extends StatefulWidget {
-  const EcoPayPage({super.key});
+  const EcoPayPage({Key? key}) : super(key: key); // FIXED: Added Key parameter
 
   @override
-  State<EcoPayPage> createState() => _EcoPayPageState();
+  State<EcoPayPage> createState() => _EcoPayPageState(); // FIXED: Changed return type
 }
 
 class _EcoPayPageState extends State<EcoPayPage> {
   final ApiService _apiService = ApiService();
-  final _rpFormatter = NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0);
-  
-  double _balanceRp = 0;
+  bool _isLoading = true;
+  double _balanceRp = 0.0;
   int _balanceCoins = 0;
   List<Transaction> _transactions = [];
-  bool _isLoading = true;
 
   @override
   void initState() {
@@ -36,22 +32,26 @@ class _EcoPayPageState extends State<EcoPayPage> {
     try {
       final token = Provider.of<AuthProvider>(context, listen: false).token;
       if (token != null) {
-        // Load wallet data
         final walletData = await _apiService.getWallet(token);
         final transactions = await _apiService.getTransactions(token);
         
-        setState(() {
-          _balanceRp = (walletData['balance_rp'] ?? 0).toDouble();
-          _balanceCoins = walletData['balance_coins'] ?? 0;
-          _transactions = transactions;
-          _isLoading = false;
-        });
+        if (mounted) {
+          setState(() {
+            _balanceRp = ConversionUtils.toDouble(walletData['balance_rp']);
+            _balanceCoins = ConversionUtils.toInt(walletData['balance_coins']);
+            _transactions = transactions;
+            _isLoading = false;
+          });
+        }
       }
     } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to load wallet: $e')),
+          SnackBar(
+            content: Text('Gagal memuat data wallet: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     }
@@ -65,413 +65,432 @@ class _EcoPayPageState extends State<EcoPayPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF1A1A1A),
-      body: RefreshIndicator(
-        onRefresh: _refreshData,
-        child: CustomScrollView(
-          slivers: [
-            _buildSliverAppBar(),
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.all(20.0),
-                child: Column(
-                  children: [
-                    _buildWalletCard(),
-                    const SizedBox(height: 24),
-                    _buildActionButtons(context),
-                    const SizedBox(height: 24),
-                    _buildTransactionHistory(),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSliverAppBar() {
-    return SliverAppBar(
-      expandedHeight: 120.0,
-      floating: false,
-      pinned: true,
-      backgroundColor: const Color(0xFF004d00),
-      flexibleSpace: FlexibleSpaceBar(
+      backgroundColor: const Color(0xFF2E7D32),
+      appBar: AppBar(
         title: const Text(
           'EcoPay',
           style: TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.bold,
-            fontSize: 24,
           ),
         ),
+        backgroundColor: const Color(0xFF2E7D32),
+        elevation: 0,
         centerTitle: true,
-        background: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [Color(0xFF004d00), Color(0xFF006600)],
-            ),
-          ),
-        ),
       ),
-      automaticallyImplyLeading: false,
+      body: RefreshIndicator(
+        onRefresh: _refreshData,
+        child: _isLoading ? _buildLoadingWidget() : _buildContent(),
+      ),
+    );
+  }
+
+  Widget _buildLoadingWidget() {
+    return const Center(
+      child: CircularProgressIndicator(
+        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+      ),
+    );
+  }
+
+  Widget _buildContent() {
+    return SingleChildScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      child: Column(
+        children: [
+          _buildWalletCard(),
+          const SizedBox(height: 20),
+          _buildActionButtons(),
+          const SizedBox(height: 20),
+          _buildTransactionHistory(),
+        ],
+      ),
     );
   }
 
   Widget _buildWalletCard() {
-    if (_isLoading) {
-      return Container(
-        height: 200,
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFF00695C), Color(0xFF004D40)],
-          ),
-          borderRadius: BorderRadius.circular(24),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.3),
-              blurRadius: 15,
-              offset: const Offset(0, 8),
-            ),
-          ],
-        ),
-        child: const Center(
-          child: CircularProgressIndicator(color: Colors.white),
-        ),
-      );
-    }
-
     return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(24.0),
+      margin: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFF00695C), Color(0xFF004D40)],
+          colors: [Color(0xFF4CAF50), Color(0xFF2E7D32)],
         ),
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.3),
-            blurRadius: 15,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '$_balanceCoins',
-                    style: const TextStyle(
-                      color: Colors.amber,
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const Text(
-                    'EcoCoins',
-                    style: TextStyle(
-                      color: Colors.white70,
-                      fontSize: 14,
-                    ),
-                  ),
-                ],
-              ),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(
-                  Icons.eco,
-                  color: Colors.amber,
-                  size: 28,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
-          const Divider(color: Colors.white24),
-          const SizedBox(height: 16),
-          const Text(
-            'Saldo Anda',
-            style: TextStyle(color: Colors.white70, fontSize: 16),
-          ),
-          const SizedBox(height: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-            decoration: BoxDecoration(
-              color: const Color(0xFF004D40),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: Colors.white24),
-            ),
-            child: Text(
-              _rpFormatter.format(_balanceRp),
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildActionButtons(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFF2A2A2A),
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.2),
-            blurRadius: 10,
+            color: Colors.black.withValues(alpha: 0.1), // FIXED: withValues instead of withOpacity
+            blurRadius: 8,
             offset: const Offset(0, 4),
           ),
         ],
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _actionButton(
-            'Top Up',
-            Icons.add_circle_outline,
-            Colors.blue,
-            () async {
-              final result = await Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const IsiSaldoScreen()),
-              );
-              if (result == true) _refreshData();
-            },
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                '$_balanceCoins',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 32,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.2), // FIXED: withValues
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  Icons.eco,
+                  color: Colors.white,
+                  size: 24,
+                ),
+              ),
+            ],
           ),
-          _actionButton(
-            'Transfer',
-            Icons.send_outlined,
-            Colors.orange,
-            () async {
-              final result = await Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const TransferScreen()),
-              );
-              if (result == true) _refreshData();
-            },
+          const SizedBox(height: 4),
+          const Text(
+            'EcoCoins',
+            style: TextStyle(
+              color: Colors.white70,
+              fontSize: 16,
+            ),
           ),
-          _actionButton(
-            'Tukar Koin',
-            Icons.swap_horiz,
-            Colors.amber,
-            () async {
-              final result = await Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const TukarKoinScreen()),
-              );
-              if (result == true) _refreshData();
-            },
+          const SizedBox(height: 20),
+          const Text(
+            'Saldo Anda',
+            style: TextStyle(
+              color: Colors.white70,
+              fontSize: 14,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.1), // FIXED: withValues
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              ConversionUtils.formatCurrency(_balanceRp),
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 20,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _actionButton(String title, IconData icon, Color color, VoidCallback onPressed) {
-    return InkWell(
-      onTap: onPressed,
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
-        child: Column(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: color.withOpacity(0.2),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(icon, color: color, size: 24),
+  Widget _buildActionButtons() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05), // FIXED: withValues
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          _buildActionButton(
+            icon: Icons.add_circle_outline,
+            label: 'Top Up',
+            color: Colors.blue,
+            onTap: () => _navigateToTopup(),
+          ),
+          _buildActionButton(
+            icon: Icons.send,
+            label: 'Transfer',
+            color: Colors.orange,
+            onTap: () => _navigateToTransfer(),
+          ),
+          _buildActionButton(
+            icon: Icons.swap_horiz,
+            label: 'Tukar Koin',
+            color: Colors.green,
+            onTap: () => _navigateToTukarKoin(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActionButton({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(12),
             ),
-            const SizedBox(height: 8),
-            Text(
-              title,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-              ),
+            child: Icon(
+              icon,
+              color: Colors.white,
+              size: 24,
             ),
-          ],
-        ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              color: Colors.black87,
+            ),
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildTransactionHistory() {
     return Container(
+      margin: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF2A2A2A),
-        borderRadius: BorderRadius.circular(20),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.2),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+            color: Colors.black.withValues(alpha: 0.05), // FIXED: withValues
+            blurRadius: 8,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
-      child: ExpansionTile(
-        leading: const Icon(Icons.history, color: Colors.white),
-        title: const Text(
-          'Riwayat Transaksi',
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-            fontSize: 16,
-          ),
-        ),
-        trailing: const Icon(Icons.keyboard_arrow_down, color: Colors.white),
-        iconColor: Colors.white,
-        collapsedIconColor: Colors.white,
-        backgroundColor: Colors.transparent,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            decoration: const BoxDecoration(
-              color: Color(0xFF1A1A1A),
-              borderRadius: BorderRadius.only(
-                bottomLeft: Radius.circular(20),
-                bottomRight: Radius.circular(20),
-              ),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Riwayat Transaksi',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
+                  ),
+                ),
+                GestureDetector(
+                  onTap: () {
+                    // Navigate to full transaction history
+                  },
+                  child: const Icon(
+                    Icons.keyboard_arrow_down,
+                    color: Colors.grey,
+                  ),
+                ),
+              ],
             ),
-            child: _isLoading
-                ? const Padding(
-                    padding: EdgeInsets.all(20),
-                    child: Center(child: CircularProgressIndicator()),
-                  )
-                : _transactions.isEmpty
-                    ? const Padding(
-                        padding: EdgeInsets.all(20),
-                        child: Text(
-                          'Belum ada transaksi',
-                          style: TextStyle(color: Colors.white70),
-                          textAlign: TextAlign.center,
-                        ),
-                      )
-                    : ListView.separated(
-                        padding: EdgeInsets.zero,
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        itemCount: _transactions.take(5).length,
-                        separatorBuilder: (context, index) => 
-                            Divider(color: Colors.grey[700], height: 1),
-                        itemBuilder: (context, index) {
-                          final trx = _transactions[index];
-                          return _buildTransactionItem(trx);
-                        },
-                      ),
+          ),
+          const Divider(height: 1),
+          _transactions.isEmpty
+              ? _buildEmptyTransactions()
+              : _buildTransactionList(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyTransactions() {
+    return Container(
+      padding: const EdgeInsets.all(32),
+      child: Column(
+        children: [
+          Icon(
+            Icons.receipt_long,
+            size: 64,
+            color: Colors.grey[400],
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Belum ada transaksi',
+            style: TextStyle(
+              fontSize: 16,
+              color: Colors.grey[600],
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Transaksi Anda akan muncul di sini',
+            style: TextStyle(
+              fontSize: 14,
+              color: Colors.grey[500],
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildTransactionItem(Transaction transaction) {
-    IconData icon;
-    Color iconColor;
-    String amountText;
-    bool isPositive = false;
+  Widget _buildTransactionList() {
+    // Show only recent 5 transactions
+    final recentTransactions = _transactions.take(5).toList();
+    
+    return ListView.separated(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: recentTransactions.length,
+      separatorBuilder: (context, index) => const Divider(height: 1),
+      itemBuilder: (context, index) {
+        final transaction = recentTransactions[index];
+        return _buildTransactionItem(transaction);
+      },
+    );
+  }
 
-    switch (transaction.type) {
-      case 'topup':
-      case 'manual_topup':
-        icon = Icons.add_circle;
-        iconColor = Colors.green;
-        amountText = _rpFormatter.format(transaction.amountRp ?? 0);
-        isPositive = true;
+  Widget _buildTransactionItem(Transaction transaction) {
+    final isIncome = transaction.isIncome;
+    final color = isIncome ? Colors.green : Colors.red;
+    final sign = isIncome ? '+' : '-';
+    
+    IconData icon;
+    switch (transaction.type.toLowerCase()) {
+      case 'transfer_in':
+        icon = Icons.call_received;
         break;
       case 'transfer_out':
-        icon = Icons.send;
-        iconColor = Colors.red;
-        amountText = _rpFormatter.format(transaction.amountRp ?? 0);
+        icon = Icons.call_made;
         break;
-      case 'coin_exchange_to_rp':
+      case 'exchange_coins':
         icon = Icons.swap_horiz;
-        iconColor = Colors.amber;
-        amountText = '${transaction.amountCoins} koin → ${_rpFormatter.format(transaction.amountRp ?? 0)}';
         break;
       case 'scan_reward':
-        icon = Icons.eco;
-        iconColor = Colors.amber;
-        amountText = '+${transaction.amountCoins} koin';
-        isPositive = true;
+        icon = Icons.qr_code_scanner;
+        break;
+      case 'topup':
+        icon = Icons.add_circle;
         break;
       default:
         icon = Icons.receipt;
-        iconColor = Colors.grey;
-        amountText = transaction.amountRp != null 
-            ? _rpFormatter.format(transaction.amountRp!)
-            : '${transaction.amountCoins} koin';
     }
 
     return ListTile(
       leading: Container(
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
-          color: iconColor.withOpacity(0.2),
+          color: color.withValues(alpha: 0.1), // FIXED: withValues
           borderRadius: BorderRadius.circular(8),
         ),
-        child: Icon(icon, color: iconColor, size: 20),
+        child: Icon(
+          icon,
+          color: color,
+          size: 24,
+        ),
       ),
       title: Text(
-        _getTransactionTitle(transaction.type),
+        transaction.typeDisplayName,
         style: const TextStyle(
-          color: Colors.white,
           fontWeight: FontWeight.w600,
-          fontSize: 14,
+          fontSize: 16,
         ),
       ),
-      subtitle: Text(
-        DateFormat('dd MMM yyyy, HH:mm').format(transaction.createdAt),
-        style: const TextStyle(color: Colors.white54, fontSize: 12),
+      subtitle: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (transaction.description.isNotEmpty)
+            Text(
+              transaction.description,
+              style: TextStyle(
+                color: Colors.grey[600],
+                fontSize: 14,
+              ),
+            ),
+          Text(
+            transaction.formattedDate,
+            style: TextStyle(
+              color: Colors.grey[500],
+              fontSize: 12,
+            ),
+          ),
+        ],
       ),
-      trailing: Text(
-        amountText,
-        style: TextStyle(
-          color: isPositive ? Colors.green : Colors.white,
-          fontWeight: FontWeight.bold,
-          fontSize: 12,
-        ),
+      trailing: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          if (transaction.amountRp > 0)
+            Text(
+              '$sign${ConversionUtils.formatCurrency(transaction.amountRp)}',
+              style: TextStyle(
+                color: color,
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+              ),
+            ),
+          if (transaction.amountCoins > 0)
+            Text(
+              '$sign${transaction.amountCoins} coins',
+              style: TextStyle(
+                color: Colors.grey[600],
+                fontSize: 12,
+              ),
+            ),
+        ],
       ),
     );
   }
 
-  String _getTransactionTitle(String type) {
-    switch (type) {
-      case 'topup':
-      case 'manual_topup':
-        return 'Top Up Saldo';
-      case 'transfer_out':
-        return 'Transfer Keluar';
-      case 'coin_exchange_to_rp':
-        return 'Tukar Koin';
-      case 'scan_reward':
-        return 'Reward Scan';
-      default:
-        return 'Transaksi';
+  void _navigateToTopup() async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const IsiSaldoScreen()), // FIXED: Changed to IsiSaldoScreen
+    );
+    
+    if (result == true) {
+      _refreshData();
+    }
+  }
+
+  void _navigateToTransfer() async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const TransferScreen()),
+    );
+    
+    if (result == true) {
+      _refreshData();
+    }
+  }
+
+  void _navigateToTukarKoin() async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const TukarKoinScreen()),
+    );
+    
+    if (result == true) {
+      _refreshData();
     }
   }
 }

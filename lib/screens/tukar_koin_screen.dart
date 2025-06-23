@@ -1,63 +1,35 @@
-// lib/screens/tukar_koin_screen.dart
-
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'package:intl/intl.dart';
 import 'package:ecocycle_app/providers/auth_provider.dart';
 import 'package:ecocycle_app/services/api_service.dart';
+import 'package:ecocycle_app/utils/conversion_utils.dart';
 
 class TukarKoinScreen extends StatefulWidget {
-  const TukarKoinScreen({super.key});
-
   @override
-  State<TukarKoinScreen> createState() => _TukarKoinScreenState();
+  _TukarKoinScreenState createState() => _TukarKoinScreenState();
 }
 
-class _TukarKoinScreenState extends State<TukarKoinScreen> with TickerProviderStateMixin {
-  final _coinController = TextEditingController();
+class _TukarKoinScreenState extends State<TukarKoinScreen> {
   final ApiService _apiService = ApiService();
-  final _rpFormatter = NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0);
+  final _formKey = GlobalKey<FormState>();
+  final _coinsController = TextEditingController();
   
   bool _isLoading = false;
   int _currentCoins = 0;
-  double _currentBalance = 0;
-  int _exchangeAmount = 0;
-  late AnimationController _animationController;
-  late Animation<double> _scaleAnimation;
-  late AnimationController _pulseController;
-  late Animation<double> _pulseAnimation;
-
-  static const int _exchangeRate = 100; // 1 koin = 100 rupiah
+  double _currentBalance = 0.0;
+  static const int _exchangeRate = 100; // 1 coin = Rp 100
 
   @override
   void initState() {
     super.initState();
-    _animationController = AnimationController(
-      duration: const Duration(milliseconds: 300),
-      vsync: this,
-    );
-    _scaleAnimation = Tween<double>(begin: 1.0, end: 0.95).animate(
-      CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
-    );
-    
-    _pulseController = AnimationController(
-      duration: const Duration(milliseconds: 1000),
-      vsync: this,
-    );
-    _pulseAnimation = Tween<double>(begin: 1.0, end: 1.1).animate(
-      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
-    );
-    
     _loadCurrentWallet();
-    _coinController.addListener(_updateExchangePreview);
+    _coinsController.addListener(_updateConversion);
   }
 
   @override
   void dispose() {
-    _coinController.dispose();
-    _animationController.dispose();
-    _pulseController.dispose();
+    _coinsController.removeListener(_updateConversion);
+    _coinsController.dispose();
     super.dispose();
   }
 
@@ -67,431 +39,220 @@ class _TukarKoinScreenState extends State<TukarKoinScreen> with TickerProviderSt
       if (token != null) {
         final walletData = await _apiService.getWallet(token);
         setState(() {
-          _currentCoins = walletData['balance_coins'] ?? 0;
-          _currentBalance = (walletData['balance_rp'] ?? 0).toDouble();
+          _currentCoins = ConversionUtils.toInt(walletData['balance_coins']);
+          _currentBalance = ConversionUtils.toDouble(walletData['balance_rp']);
         });
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Gagal memuat data wallet: $e')),
+          SnackBar(
+            content: Text('Gagal memuat data wallet: $e'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     }
   }
 
-  void _updateExchangePreview() {
-    final coins = int.tryParse(_coinController.text) ?? 0;
-    setState(() {
-      _exchangeAmount = coins * _exchangeRate;
-    });
+  void _updateConversion() {
+    setState(() {}); // Trigger rebuild to update conversion display
   }
 
-  Future<void> _confirmExchange() async {
-    if (_coinController.text.isEmpty) {
-      _showErrorDialog('Silakan masukkan jumlah koin yang akan ditukar.');
-      return;
-    }
+  double get _conversionAmount {
+    final coins = ConversionUtils.toInt(_coinsController.text);
+    return coins * _exchangeRate.toDouble();
+  }
 
-    final coins = int.tryParse(_coinController.text) ?? 0;
-    if (coins <= 0) {
-      _showErrorDialog('Jumlah koin tidak valid.');
-      return;
-    }
-
-    if (coins > _currentCoins) {
-      _showErrorDialog('Koin Anda tidak mencukupi untuk pertukaran ini.');
-      return;
-    }
-
-    if (coins < 10) {
-      _showErrorDialog('Minimal penukaran adalah 10 koin.');
-      return;
-    }
-
-    // Show confirmation dialog
-    final confirmed = await _showConfirmationDialog(coins);
-    if (!confirmed) return;
+  Future<void> _performExchange() async {
+    if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isLoading = true);
-    _animationController.forward();
 
     try {
       final token = Provider.of<AuthProvider>(context, listen: false).token;
-      if (token == null) throw Exception('User not authenticated.');
+      if (token == null) {
+        throw Exception('Token tidak ditemukan');
+      }
 
-      await _apiService.exchangeCoins(token, coins);
+      final coins = ConversionUtils.toInt(_coinsController.text);
+      
+      if (coins > _currentCoins) {
+        throw Exception('Koin tidak mencukupi');
+      }
+
+      await _apiService.exchangeCoins(
+        token,
+        coins: coins,
+      );
 
       if (mounted) {
-        // Update local balances
-        setState(() {
-          _currentCoins -= coins;
-          _currentBalance += _exchangeAmount;
-        });
-
-        _showSuccessDialog(coins, _exchangeAmount);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Tukar koin berhasil!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        
+        Navigator.pop(context, true); // Return true to indicate success
       }
     } catch (e) {
       if (mounted) {
-        _showErrorDialog(e.toString().replaceFirst("Exception: ", ""));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Tukar koin gagal: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
-        _animationController.reverse();
       }
     }
   }
 
-  Future<bool> _showConfirmationDialog(int coins) async {
-    return await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF2A2A2A),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text(
-          'Konfirmasi Tukar Koin',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Anda akan menukar:',
-              style: TextStyle(color: Colors.grey[300]),
-            ),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.amber.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.amber.withOpacity(0.3)),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.eco, color: Colors.amber, size: 24),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '$coins EcoCoins',
-                          style: const TextStyle(
-                            color: Colors.amber,
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        Text(
-                          'Menjadi ${_rpFormatter.format(coins * _exchangeRate)}',
-                          style: TextStyle(color: Colors.grey[300], fontSize: 14),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.orange.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.orange.withOpacity(0.3)),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.info_outline, color: Colors.orange, size: 20),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Penukaran tidak dapat dibatalkan',
-                      style: TextStyle(color: Colors.orange[300], fontSize: 12),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: Text(
-              'Batal',
-              style: TextStyle(color: Colors.grey[400]),
-            ),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.amber,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            ),
-            child: const Text('Konfirmasi', style: TextStyle(color: Colors.black)),
-          ),
-        ],
-      ),
-    ) ?? false;
-  }
-
-  void _showSuccessDialog(int coins, int rupiah) {
-    _pulseController.repeat(reverse: true);
-    
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF2A2A2A),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            AnimatedBuilder(
-              animation: _pulseAnimation,
-              builder: (context, child) {
-                return Transform.scale(
-                  scale: _pulseAnimation.value,
-                  child: Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: const BoxDecoration(
-                      color: Colors.amber,
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(Icons.swap_horiz, color: Colors.black, size: 32),
-                  ),
-                );
-              },
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'Tukar Koin Berhasil!',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.amber.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.amber.withOpacity(0.3)),
-              ),
-              child: Column(
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.eco, color: Colors.amber, size: 20),
-                      const SizedBox(width: 8),
-                      Text(
-                        '$coins Koin',
-                        style: const TextStyle(
-                          color: Colors.amber,
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  const Icon(Icons.arrow_downward, color: Colors.grey, size: 20),
-                  const SizedBox(height: 8),
-                  Text(
-                    _rpFormatter.format(rupiah),
-                    style: const TextStyle(
-                      color: Colors.green,
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: () {
-                _pulseController.stop();
-                _pulseController.reset();
-                Navigator.of(context).pop();
-                Navigator.of(context).pop(true); // Return to EcoPay with refresh signal
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.amber,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              ),
-              child: const Text('Selesai', style: TextStyle(color: Colors.black)),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showErrorDialog(String message) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF2A2A2A),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Row(
-          children: [
-            Icon(Icons.error_outline, color: Colors.red),
-            SizedBox(width: 8),
-            Text('Error', style: TextStyle(color: Colors.white)),
-          ],
-        ),
-        content: Text(message, style: const TextStyle(color: Colors.white)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('OK', style: TextStyle(color: Colors.orange)),
-          ),
-        ],
-      ),
-    );
+  void _setMaxCoins() {
+    _coinsController.text = _currentCoins.toString();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF1A1A1A),
       appBar: AppBar(
         title: const Text(
           'Tukar Koin',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+          ),
         ),
-        backgroundColor: Colors.transparent,
+        backgroundColor: const Color(0xFF2E7D32),
         elevation: 0,
-        iconTheme: const IconThemeData(color: Colors.white),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildCoinsCard(),
-            const SizedBox(height: 24),
-            _buildExchangeRateCard(),
-            const SizedBox(height: 24),
-            _buildExchangeForm(),
-            const SizedBox(height: 24),
-            _buildPreviewCard(),
-            const SizedBox(height: 40),
-            _buildExchangeButton(),
-          ],
+        centerTitle: true,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
         ),
+      ),
+      backgroundColor: const Color(0xFF2E7D32),
+      body: Column(
+        children: [
+          _buildWalletCard(),
+          Expanded(
+            child: Container(
+              margin: const EdgeInsets.only(top: 20),
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(24),
+                  topRight: Radius.circular(24),
+                ),
+              ),
+              child: _buildExchangeForm(),
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildCoinsCard() {
+  Widget _buildWalletCard() {
     return Container(
-      width: double.infinity,
+      margin: const EdgeInsets.all(16),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFFFF8F00), Color(0xFFFFB300)],
-        ),
+        color: Colors.white.withOpacity(0.1),
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.orange.withOpacity(0.3),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        border: Border.all(color: Colors.white.withOpacity(0.2)),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Icon(Icons.eco, color: Colors.white, size: 24),
-              const SizedBox(width: 8),
-              const Text(
-                'EcoCoins Tersedia',
-                style: TextStyle(
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'EcoCoins Tersedia',
+                      style: TextStyle(
+                        color: Colors.white70,
+                        fontSize: 14,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Text(
+                          '$_currentCoins',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Text(
+                            'coins',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.eco,
                   color: Colors.white,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
+                  size: 24,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 12),
-          Text(
-            '$_currentCoins Koin',
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 32,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildExchangeRateCard() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFF2A2A2A),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.amber.withOpacity(0.3)),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
+          const SizedBox(height: 16),
           Container(
-            padding: const EdgeInsets.all(8),
+            padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.amber.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(8),
+              color: Colors.white.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
             ),
-            child: const Icon(Icons.eco, color: Colors.amber, size: 20),
-          ),
-          const SizedBox(width: 12),
-          const Text(
-            '1 Koin',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(width: 16),
-          const Icon(Icons.arrow_forward, color: Colors.grey, size: 20),
-          const SizedBox(width: 16),
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Colors.green.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: const Icon(Icons.payments, color: Colors.green, size: 20),
-          ),
-          const SizedBox(width: 12),
-          const Text(
-            'Rp 100',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.info_outline,
+                  color: Colors.white70,
+                  size: 20,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Nilai tukar: 1 coin = ${ConversionUtils.formatCurrency(_exchangeRate)}',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -500,197 +261,289 @@ class _TukarKoinScreenState extends State<TukarKoinScreen> with TickerProviderSt
   }
 
   Widget _buildExchangeForm() {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: const Color(0xFF2A2A2A),
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.2),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Jumlah Koin',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 16),
-          TextField(
-            controller: _coinController,
-            keyboardType: TextInputType.number,
-            style: const TextStyle(color: Colors.white, fontSize: 18),
-            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-            decoration: InputDecoration(
-              hintText: 'Masukkan jumlah koin (min. 10)',
-              hintStyle: TextStyle(color: Colors.grey[400]),
-              prefixIcon: const Icon(Icons.eco, color: Colors.amber),
-              suffixText: 'Koin',
-              suffixStyle: const TextStyle(color: Colors.amber, fontWeight: FontWeight.bold),
-              filled: true,
-              fillColor: const Color(0xFF1A1A1A),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide.none,
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: Colors.amber, width: 2),
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Form(
+        key: _formKey,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Tukar EcoCoins ke Rupiah',
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: Colors.black87,
               ),
             ),
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              _buildQuickAmountButton(50),
-              const SizedBox(width: 8),
-              _buildQuickAmountButton(100),
-              const SizedBox(width: 8),
-              _buildQuickAmountButton(250),
-              const Spacer(),
-              TextButton(
-                onPressed: () => _coinController.text = '$_currentCoins',
-                child: const Text(
-                  'Semua Koin',
-                  style: TextStyle(color: Colors.amber, fontWeight: FontWeight.bold),
-                ),
+            const SizedBox(height: 8),
+            Text(
+              'Konversi EcoCoins Anda menjadi saldo rupiah',
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.grey[600],
               ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildQuickAmountButton(int amount) {
-    final isEnabled = amount <= _currentCoins;
-    return GestureDetector(
-      onTap: isEnabled ? () => _coinController.text = '$amount' : null,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: isEnabled ? Colors.amber.withOpacity(0.2) : Colors.grey.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: isEnabled ? Colors.amber.withOpacity(0.5) : Colors.grey.withOpacity(0.3),
-          ),
-        ),
-        child: Text(
-          '$amount',
-          style: TextStyle(
-            color: isEnabled ? Colors.amber : Colors.grey,
-            fontSize: 12,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildPreviewCard() {
-    if (_exchangeAmount == 0) return const SizedBox.shrink();
-
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Colors.green.withOpacity(0.2), Colors.green.withOpacity(0.1)],
-        ),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.green.withOpacity(0.3)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Preview Penukaran',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
             ),
-          ),
-          const SizedBox(height: 16),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                'Anda akan mendapatkan:',
-                style: TextStyle(color: Colors.white70, fontSize: 14),
+            const SizedBox(height: 32),
+            
+            // Coins Input Field
+            const Text(
+              'Jumlah EcoCoins',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: Colors.black87,
               ),
-              Text(
-                _rpFormatter.format(_exchangeAmount),
-                style: const TextStyle(
-                  color: Colors.green,
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
+            ),
+            const SizedBox(height: 8),
+            TextFormField(
+              controller: _coinsController,
+              keyboardType: TextInputType.number,
+              decoration: InputDecoration(
+                hintText: 'Masukkan jumlah coins',
+                prefixIcon: const Icon(Icons.eco),
+                suffixIcon: TextButton(
+                  onPressed: _setMaxCoins,
+                  child: const Text(
+                    'MAX',
+                    style: TextStyle(
+                      color: Color(0xFF2E7D32),
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildExchangeButton() {
-    return AnimatedBuilder(
-      animation: _scaleAnimation,
-      builder: (context, child) {
-        return Transform.scale(
-          scale: _scaleAnimation.value,
-          child: SizedBox(
-            width: double.infinity,
-            height: 56,
-            child: ElevatedButton(
-              onPressed: _isLoading ? null : _confirmExchange,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.amber,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Colors.grey[300]!),
                 ),
-                elevation: _isLoading ? 0 : 8,
-                shadowColor: Colors.amber.withOpacity(0.3),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Colors.grey[300]!),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: Color(0xFF2E7D32), width: 2),
+                ),
+                filled: true,
+                fillColor: Colors.grey[50],
               ),
-              child: _isLoading
-                  ? const SizedBox(
-                      height: 24,
-                      width: 24,
-                      child: CircularProgressIndicator(
-                        color: Colors.black,
-                        strokeWidth: 3,
+              validator: (value) {
+                if (value == null || value.isEmpty) {
+                  return 'Jumlah coins harus diisi';
+                }
+                
+                final coins = ConversionUtils.toInt(value);
+                if (coins <= 0) {
+                  return 'Jumlah coins harus lebih dari 0';
+                }
+                if (coins > _currentCoins) {
+                  return 'Coins tidak mencukupi';
+                }
+                if (coins < 10) {
+                  return 'Minimal tukar 10 coins';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 24),
+            
+            // Conversion Display
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    const Color(0xFF2E7D32).withOpacity(0.1),
+                    const Color(0xFF4CAF50).withOpacity(0.1),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFF2E7D32).withOpacity(0.2)),
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF2E7D32).withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(
+                          Icons.swap_horiz,
+                          color: Color(0xFF2E7D32),
+                          size: 20,
+                        ),
                       ),
-                    )
-                  : const Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.swap_horiz, color: Colors.black),
-                        SizedBox(width: 8),
-                        Text(
-                          'Tukar Koin Sekarang',
+                      const SizedBox(width: 12),
+                      const Text(
+                        'Hasil Konversi',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.black87,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Coins yang ditukar',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '${ConversionUtils.toInt(_coinsController.text)} coins',
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black87,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const Icon(
+                        Icons.arrow_forward,
+                        color: Color(0xFF2E7D32),
+                      ),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text(
+                            'Rupiah yang didapat',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            ConversionUtils.formatCurrency(_conversionAmount),
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF2E7D32),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 32),
+            
+            // Exchange Button
+            SizedBox(
+              width: double.infinity,
+              height: 56,
+              child: ElevatedButton(
+                onPressed: _isLoading ? null : _performExchange,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF2E7D32),
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  disabledBackgroundColor: Colors.grey[300],
+                ),
+                child: _isLoading
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                        ),
+                      )
+                    : const Text(
+                        'Tukar Sekarang',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            
+            // Info Cards
+            Column(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.green[50],
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.green[200]!),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.eco,
+                        color: Colors.green[600],
+                        size: 20,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'EcoCoins diperoleh dari aktivitas scan sampah di dropbox EcoCycle.',
                           style: TextStyle(
-                            color: Colors.black,
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                            color: Colors.green[800],
                           ),
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.blue[50],
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.blue[200]!),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.info_outline,
+                        color: Colors.blue[600],
+                        size: 20,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'Saldo dari tukar koin akan langsung masuk ke wallet Anda dan bisa digunakan untuk transfer.',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.blue[800],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
-          ),
-        );
-      },
+          ],
+        ),
+      ),
     );
   }
 }

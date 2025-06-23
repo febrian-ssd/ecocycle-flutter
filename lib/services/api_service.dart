@@ -1,88 +1,77 @@
-// lib/services/api_service.dart
-
 import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
-import 'package:ecocycle_app/models/dropbox.dart';
 import 'package:ecocycle_app/models/transaction.dart';
+import 'package:ecocycle_app/utils/conversion_utils.dart';
 
 class ApiService {
-  // Pastikan ini adalah domain asli Anda saat online
-  final String _baseUrl = 'https://ecocylce.my.id/api';
-  // Untuk development lokal, gunakan:
-  // final String _baseUrl = 'http://10.0.2.2:8000/api';
+  static const String _baseUrl = 'http://192.168.1.100:8000/api';
 
-  // Timeout untuk request
-  static const Duration _timeout = Duration(seconds: 30);
-
-  // Helper method untuk handle response
-  Map<String, dynamic> _handleResponse(http.Response response) {
-    if (response.statusCode >= 200 && response.statusCode < 300) {
-      try {
-        final decoded = json.decode(response.body);
-        if (decoded is Map<String, dynamic>) {
-          return decoded;
-        } else if (decoded is List) {
-          // Jika response adalah array, wrap dalam object
-          return {'data': decoded};
-        } else {
-          throw Exception('Invalid response format from server');
-        }
-      } catch (e) {
-        throw Exception('Invalid JSON response from server');
-      }
-    } else {
-      try {
-        final responseData = json.decode(response.body);
-        if (responseData is Map<String, dynamic>) {
-          final message = responseData['message'] ?? 
-                         responseData['error'] ?? 
-                         'Request failed with status ${response.statusCode}';
-          throw Exception(message);
-        } else {
-          throw Exception('Server error: ${response.statusCode}');
-        }
-      } on FormatException {
-        // Jika response bukan JSON (misal: halaman error HTML)
-        throw Exception('Server error: ${response.statusCode}. Please try again later.');
-      }
-    }
-  }
-
-  // Helper method untuk headers dengan auth
+  // Headers dengan Content-Type JSON
   Map<String, String> _getHeaders({String? token}) {
-    final headers = {
-      'Accept': 'application/json',
+    final headers = <String, String>{
       'Content-Type': 'application/json',
+      'Accept': 'application/json',
     };
+    
     if (token != null) {
       headers['Authorization'] = 'Bearer $token';
     }
+    
     return headers;
   }
 
-  // Helper method untuk HTTP requests dengan timeout
-  Future<http.Response> _makeRequest(
-    Future<http.Response> Function() requestFunction,
-  ) async {
+  // Wrapper untuk request dengan error handling
+  Future<http.Response> _makeRequest(Future<http.Response> Function() request) async {
     try {
-      return await requestFunction().timeout(_timeout);
+      return await request();
     } on SocketException {
-      throw Exception('No internet connection');
+      throw Exception('Tidak ada koneksi internet');
     } on HttpException {
-      throw Exception('Network error occurred');
-    } on FormatException {
-      throw Exception('Invalid response format');
+      throw Exception('Gagal terhubung ke server');
     } catch (e) {
-      if (e.toString().contains('TimeoutException')) {
-        throw Exception('Request timeout. Please try again.');
-      }
-      rethrow;
+      throw Exception('Terjadi kesalahan: $e');
     }
   }
 
-  // --- METHOD OTENTIKASI ---
-  Future<Map<String, dynamic>> login(String email, String password) async {
+  // Handle response dengan error checking
+  Map<String, dynamic> _handleResponse(http.Response response) {
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      final responseData = json.decode(response.body);
+      return responseData is Map<String, dynamic> ? responseData : {'data': responseData};
+    } else {
+      final errorData = json.decode(response.body);
+      throw Exception(errorData['message'] ?? 'Terjadi kesalahan server');
+    }
+  }
+
+  // AUTH ENDPOINTS
+  Future<Map<String, dynamic>> register({
+    required String name,
+    required String email,
+    required String password,
+    required String passwordConfirmation,
+  }) async {
+    final url = Uri.parse('$_baseUrl/register');
+    
+    final response = await _makeRequest(() => http.post(
+      url,
+      headers: _getHeaders(),
+      body: json.encode({
+        'name': name,
+        'email': email,
+        'password': password,
+        'password_confirmation': passwordConfirmation,
+      }),
+    ));
+
+    return _handleResponse(response);
+  }
+
+  Future<Map<String, dynamic>> login({
+    required String email,
+    required String password,
+  }) async {
     final url = Uri.parse('$_baseUrl/login');
     
     final response = await _makeRequest(() => http.post(
@@ -93,64 +82,88 @@ class ApiService {
         'password': password,
       }),
     ));
-    
+
     return _handleResponse(response);
   }
 
-  Future<Map<String, dynamic>> register(String name, String email, String password) async {
-    final url = Uri.parse('$_baseUrl/register');
+  Future<void> logout(String token) async {
+    final url = Uri.parse('$_baseUrl/logout');
     
-    final response = await _makeRequest(() => http.post(
+    await _makeRequest(() => http.post(
       url,
-      headers: _getHeaders(),
-      body: json.encode({
-        'name': name,
-        'email': email,
-        'password': password,
-      }),
+      headers: _getHeaders(token: token),
     ));
+  }
+
+  // USER PROFILE
+  Future<Map<String, dynamic>> getProfile(String token) async {
+    final url = Uri.parse('$_baseUrl/profile');
     
+    final response = await _makeRequest(() => http.get(
+      url,
+      headers: _getHeaders(token: token),
+    ));
+
     return _handleResponse(response);
   }
 
-  // --- METHOD UNTUK PETA & SCAN ---
-  Future<List<Dropbox>> getDropboxes(String token) async {
+  Future<Map<String, dynamic>> updateProfile(String token, {
+    String? name,
+    String? email,
+    String? password,
+  }) async {
+    final url = Uri.parse('$_baseUrl/profile');
+    
+    final body = <String, dynamic>{};
+    if (name != null) body['name'] = name;
+    if (email != null) body['email'] = email;
+    if (password != null) body['password'] = password;
+
+    final response = await _makeRequest(() => http.put(
+      url,
+      headers: _getHeaders(token: token),
+      body: json.encode(body),
+    ));
+
+    return _handleResponse(response);
+  }
+
+  // DROPBOX ENDPOINTS
+  Future<List<Map<String, dynamic>>> getDropboxes(String token) async {
     final url = Uri.parse('$_baseUrl/dropboxes');
     
     final response = await _makeRequest(() => http.get(
       url,
       headers: _getHeaders(token: token),
     ));
-    
+
     final responseData = _handleResponse(response);
+    final dropboxes = responseData['data'] as List? ?? responseData as List? ?? [];
     
-    // Handle both direct array response and wrapped response
-    List<dynamic> dropboxList;
-    if (responseData.containsKey('data') && responseData['data'] is List) {
-      dropboxList = responseData['data'] as List<dynamic>;
-    } else if (responseData is Map && responseData.containsKey('data')) {
-      final data = responseData['data'];
-      if (data is List) {
-        dropboxList = data;
-      } else {
-        throw Exception('Invalid dropboxes data format');
-      }
-    } else {
-      throw Exception('Invalid dropboxes response format');
-    }
-    
-    return dropboxList
-        .map((item) => Dropbox.fromJson(item as Map<String, dynamic>))
-        .toList();
+    return dropboxes.cast<Map<String, dynamic>>();
   }
 
-  Future<Map<String, dynamic>> confirmScan(
-    String token, {
+  // SCAN ENDPOINTS
+  Future<Map<String, dynamic>> scanQR(String token, String qrCode) async {
+    final url = Uri.parse('$_baseUrl/scan');
+    
+    final response = await _makeRequest(() => http.post(
+      url,
+      headers: _getHeaders(token: token),
+      body: json.encode({
+        'qr_code': qrCode,
+      }),
+    ));
+
+    return _handleResponse(response);
+  }
+
+  Future<Map<String, dynamic>> confirmScan(String token, {
     required String dropboxCode,
     required String wasteType,
-    required String weight,
+    required double weight,
   }) async {
-    final url = Uri.parse('$_baseUrl/scans/confirm');
+    final url = Uri.parse('$_baseUrl/scan/confirm');
     
     final response = await _makeRequest(() => http.post(
       url,
@@ -161,11 +174,26 @@ class ApiService {
         'weight': weight,
       }),
     ));
-    
+
     return _handleResponse(response);
   }
 
-  // --- METHOD UNTUK ECOPAY ---
+  // HISTORY ENDPOINTS
+  Future<List<Map<String, dynamic>>> getHistory(String token) async {
+    final url = Uri.parse('$_baseUrl/history');
+    
+    final response = await _makeRequest(() => http.get(
+      url,
+      headers: _getHeaders(token: token),
+    ));
+
+    final responseData = _handleResponse(response);
+    final history = responseData['data'] as List? ?? responseData as List? ?? [];
+    
+    return history.cast<Map<String, dynamic>>();
+  }
+
+  // ECOPAY/WALLET ENDPOINTS
   Future<Map<String, dynamic>> getWallet(String token) async {
     final url = Uri.parse('$_baseUrl/wallet');
     
@@ -174,7 +202,14 @@ class ApiService {
       headers: _getHeaders(token: token),
     ));
     
-    return _handleResponse(response);
+    final responseData = _handleResponse(response);
+    
+    // Safe conversion using ConversionUtils
+    return {
+      'balance_rp': ConversionUtils.toDouble(responseData['balance_rp']),
+      'balance_coins': ConversionUtils.toInt(responseData['balance_coins']),
+      'formatted_balance_rp': responseData['formatted_balance_rp'] ?? 'Rp 0',
+    };
   }
 
   Future<List<Transaction>> getTransactions(String token) async {
@@ -184,62 +219,19 @@ class ApiService {
       url,
       headers: _getHeaders(token: token),
     ));
-    
+
     final responseData = _handleResponse(response);
+    final transactionsList = responseData['data'] as List? ?? responseData as List? ?? [];
     
-    // Handle both direct array response and wrapped response
-    List<dynamic> transactionList;
-    if (responseData.containsKey('data') && responseData['data'] is List) {
-      transactionList = responseData['data'] as List<dynamic>;
-    } else if (responseData is Map && responseData.containsKey('data')) {
-      final data = responseData['data'];
-      if (data is List) {
-        transactionList = data;
-      } else {
-        throw Exception('Invalid transactions data format');
-      }
-    } else {
-      throw Exception('Invalid transactions response format');
-    }
-    
-    return transactionList
-        .map((item) => Transaction.fromJson(item as Map<String, dynamic>))
+    return transactionsList
+        .map((json) => Transaction.fromJson(json as Map<String, dynamic>))
         .toList();
   }
 
-  Future<Map<String, dynamic>> exchangeCoins(String token, int coinsAmount) async {
-    final url = Uri.parse('$_baseUrl/coins/exchange');
-    
-    final response = await _makeRequest(() => http.post(
-      url,
-      headers: _getHeaders(token: token),
-      body: json.encode({
-        'coins_to_exchange': coinsAmount,
-      }),
-    ));
-    
-    return _handleResponse(response);
-  }
-
-  Future<String> requestTopup(String token, int amount) async {
-    final url = Uri.parse('$_baseUrl/topup-request');
-    
-    final response = await _makeRequest(() => http.post(
-      url,
-      headers: _getHeaders(token: token),
-      body: json.encode({
-        'amount': amount,
-      }),
-    ));
-    
-    final responseData = _handleResponse(response);
-    return responseData['message'] ?? 'Top up request sent successfully';
-  }
-
-  Future<Map<String, dynamic>> transfer(
-    String token, {
-    required int amount,
-    required String destination,
+  Future<Map<String, dynamic>> transfer(String token, {
+    required String email,
+    required double amount,
+    String? description,
   }) async {
     final url = Uri.parse('$_baseUrl/transfer');
     
@@ -247,51 +239,84 @@ class ApiService {
       url,
       headers: _getHeaders(token: token),
       body: json.encode({
+        'email': email,
         'amount': amount,
-        'destination': destination,
+        'description': description ?? '',
       }),
     ));
-    
+
     return _handleResponse(response);
   }
 
-  // --- METHOD UNTUK LOGOUT ---
-  Future<void> logout(String token) async {
-    final url = Uri.parse('$_baseUrl/logout');
+  Future<Map<String, dynamic>> exchangeCoins(String token, {
+    required int coins,
+  }) async {
+    final url = Uri.parse('$_baseUrl/exchange-coins');
     
-    try {
-      final response = await _makeRequest(() => http.post(
-        url,
-        headers: _getHeaders(token: token),
-      ));
-      
-      _handleResponse(response);
-    } catch (e) {
-      // Logout gagal di server, tapi tetap logout di local
-      // Tidak perlu throw exception
-    }
+    final response = await _makeRequest(() => http.post(
+      url,
+      headers: _getHeaders(token: token),
+      body: json.encode({
+        'coins': coins,
+      }),
+    ));
+
+    return _handleResponse(response);
   }
 
-  // --- METHOD UNTUK MENDAPATKAN USER INFO ---
-  Future<Map<String, dynamic>> getUserInfo(String token) async {
-    final url = Uri.parse('$_baseUrl/user');
+  Future<Map<String, dynamic>> topupRequest(String token, {
+    required double amount,
+    required String method,
+  }) async {
+    final url = Uri.parse('$_baseUrl/topup-request');
+    
+    final response = await _makeRequest(() => http.post(
+      url,
+      headers: _getHeaders(token: token),
+      body: json.encode({
+        'amount': amount,
+        'method': method,
+      }),
+    ));
+
+    return _handleResponse(response);
+  }
+
+  Future<List<Map<String, dynamic>>> getTopupRequests(String token) async {
+    final url = Uri.parse('$_baseUrl/topup-requests');
     
     final response = await _makeRequest(() => http.get(
       url,
       headers: _getHeaders(token: token),
     ));
+
+    final responseData = _handleResponse(response);
+    final requests = responseData['data'] as List? ?? responseData as List? ?? [];
     
-    return _handleResponse(response);
+    return requests.cast<Map<String, dynamic>>();
   }
 
-  // --- METHOD UNTUK TESTING CONNECTION ---
-  Future<bool> testConnection() async {
-    try {
-      final url = Uri.parse('$_baseUrl/dropboxes');
-      final response = await http.get(url).timeout(const Duration(seconds: 5));
-      return response.statusCode < 500;
-    } catch (e) {
-      return false;
-    }
+  // UPLOAD PAYMENT PROOF
+  Future<Map<String, dynamic>> uploadPaymentProof(
+    String token, 
+    int topupRequestId, 
+    File imageFile
+  ) async {
+    final url = Uri.parse('$_baseUrl/topup-request/$topupRequestId/upload-proof');
+    
+    final request = http.MultipartRequest('POST', url);
+    request.headers.addAll(_getHeaders(token: token));
+    
+    final multipartFile = await http.MultipartFile.fromPath(
+      'payment_proof',
+      imageFile.path,
+    );
+    
+    request.files.add(multipartFile);
+    
+    final streamedResponse = await request.send();
+    final response = await http.Response.fromStream(streamedResponse);
+    
+    return _handleResponse(response);
   }
 }
