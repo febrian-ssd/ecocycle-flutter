@@ -1,11 +1,11 @@
-// lib/screens/konfirmasi_scan_screen.dart - FIXED
-import 'dart:convert'; // ADDED: For json
+// lib/screens/konfirmasi_scan_screen.dart - FIXED (Remove unused imports and elements)
+import 'dart:convert'; // For json
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart'; // ADDED: For Provider
-import 'package:ecocycle_app/providers/auth_provider.dart'; // ADDED: For AuthProvider
-import 'package:ecocycle_app/services/api_service.dart'; // ADDED: For ApiService
-import 'package:ecocycle_app/screens/transaksi_berhasil_screen.dart'; // ADDED: For TransaksiBerhasilScreen
-import 'package:ecocycle_app/utils/conversion_utils.dart'; // ADDED: For ConversionUtils
+import 'package:provider/provider.dart'; // For Provider
+import 'package:ecocycle_app/providers/auth_provider.dart'; // For AuthProvider
+import 'package:ecocycle_app/services/api_service.dart'; // For ApiService
+import 'package:ecocycle_app/screens/transaksi_berhasil_screen.dart'; // For TransaksiBerhasilScreen
+// FIXED: Removed unused import 'package:ecocycle_app/utils/conversion_utils.dart'
 
 class KonfirmasiScanScreen extends StatefulWidget {
   // Sekarang kita menerima string JSON
@@ -40,7 +40,7 @@ class _KonfirmasiScanScreenState extends State<KonfirmasiScanScreen> {
         _dropboxCode = data['id'] ?? 'N/A';
         _dropboxLocation = data['location'] ?? 'N/A';
         _wasteType = data['waste_type'] ?? 'N/A';
-        _weight = double.parse(data['weight_g'].toString()); // FIXED: Parse to double
+        _weight = double.parse(data['weight_g'].toString()); // Parse to double
         // Logika 1 gram = 10 koin
         _potentialCoins = (_weight * 10).floor();
       });
@@ -66,7 +66,7 @@ class _KonfirmasiScanScreenState extends State<KonfirmasiScanScreen> {
         token,
         dropboxCode: _dropboxCode,
         wasteType: _wasteType,
-        weight: _weight, // FIXED: Pass as double, not string
+        weight: _weight, // Pass as double
       );
 
       if (mounted) {
@@ -92,7 +92,9 @@ class _KonfirmasiScanScreenState extends State<KonfirmasiScanScreen> {
       backgroundColor: const Color(0xFF303030),
       appBar: AppBar(
         title: const Text('Konfirmasi Scan', style: TextStyle(color: Colors.white)),
-        backgroundColor: Colors.transparent, elevation: 0, iconTheme: const IconThemeData(color: Colors.white),
+        backgroundColor: Colors.transparent, 
+        elevation: 0, 
+        iconTheme: const IconThemeData(color: Colors.white),
       ),
       body: Padding(
         padding: const EdgeInsets.all(24.0),
@@ -100,35 +102,66 @@ class _KonfirmasiScanScreenState extends State<KonfirmasiScanScreen> {
           children: [
             Container(
               padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(color: const Color(0xFF004d00), borderRadius: BorderRadius.circular(20)),
+              decoration: BoxDecoration(
+                color: const Color(0xFF004d00), 
+                borderRadius: BorderRadius.circular(20)
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Barcode Information', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+                  const Text(
+                    'Barcode Information', 
+                    style: TextStyle(
+                      color: Colors.white, 
+                      fontSize: 20, 
+                      fontWeight: FontWeight.bold
+                    )
+                  ),
                   const SizedBox(height: 20),
                   // Semua field sekarang tidak bisa diedit
                   _buildInfoRow('Dropbox Code', _dropboxCode),
                   _buildInfoRow('Dropbox Location', _dropboxLocation),
                   _buildInfoRow('Waste Type', _wasteType),
-                  _buildInfoRow('Weight', '${_weight.toStringAsFixed(1)} g'), // FIXED: Better formatting
+                  _buildInfoRow('Weight', '${_weight.toStringAsFixed(1)} g'), // Better formatting
                 ],
               ),
             ),
             const SizedBox(height: 20),
             // Tampilan koin yang akan didapat
             Text(
-              'Anda akan mendapatkan: $_potentialCoins koin', // FIXED: Remove unnecessary braces
-              style: const TextStyle(color: Colors.amber, fontSize: 16, fontWeight: FontWeight.bold),
+              'Anda akan mendapatkan: $_potentialCoins koin', // Remove unnecessary braces
+              style: const TextStyle(
+                color: Colors.amber, 
+                fontSize: 16, 
+                fontWeight: FontWeight.bold
+              ),
             ),
             const Spacer(),
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
                 onPressed: _isLoading ? null : _confirm,
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.orange, padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.orange, 
+                  padding: const EdgeInsets.symmetric(vertical: 16), 
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))
+                ),
                 child: _isLoading 
-                    ? const SizedBox(height: 24, width: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3))
-                    : const Text('Confirm', style: TextStyle(color: Colors.white, fontSize: 18)),
+                    ? const SizedBox(
+                        height: 24, 
+                        width: 24, 
+                        child: CircularProgressIndicator(
+                          color: Colors.white, 
+                          strokeWidth: 3
+                        )
+                      )
+                    : const Text(
+                        'Confirm', 
+                        style: TextStyle(
+                          color: Colors.white, 
+                          fontSize: 18
+                        )
+                      ),
               ),
             )
           ],
@@ -137,60 +170,7 @@ class _KonfirmasiScanScreenState extends State<KonfirmasiScanScreen> {
     );
   }
 
-  // Widget ini sekarang hanya untuk menampilkan teks, tidak lagi butuh controller
-  Widget _buildInfoCard(String title, String value, IconData icon, Color color) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1E1E1E),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: color.withValues(alpha: 0.3),
-        ),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(
-              icon,
-              color: color,
-              size: 20,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: TextStyle(
-                    color: Colors.grey[400],
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  value,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  // FIXED: Removed unused _buildInfoCard method
 
   Widget _buildInfoRow(String label, String value) {
     return Padding(
@@ -198,14 +178,26 @@ class _KonfirmasiScanScreenState extends State<KonfirmasiScanScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Expanded(flex: 2, child: Text(label, style: const TextStyle(color: Colors.white, fontSize: 16))),
+          Expanded(
+            flex: 2, 
+            child: Text(
+              label, 
+              style: const TextStyle(color: Colors.white, fontSize: 16)
+            )
+          ),
           Expanded(
             flex: 3,
             child: Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8)),
-              child: Text(value, style: const TextStyle(color: Colors.black, fontSize: 16)),
+              decoration: BoxDecoration(
+                color: Colors.white, 
+                borderRadius: BorderRadius.circular(8)
+              ),
+              child: Text(
+                value, 
+                style: const TextStyle(color: Colors.black, fontSize: 16)
+              ),
             ),
           ),
         ],

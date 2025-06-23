@@ -1,4 +1,4 @@
-// lib/screens/login_screen.dart - ELEGANT CLEAN VERSION WITH THICK BORDERS
+// lib/screens/login_screen.dart - IMPROVED VISIBILITY VERSION
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:ecocycle_app/providers/auth_provider.dart';
@@ -194,10 +194,10 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
               width: 1,
             ),
           ),
-          child: Image.asset(
-            'assets/logo.png', 
-            height: 80,
-            width: 80,
+          child: const Icon(
+            Icons.eco,
+            size: 60,
+            color: Colors.white,
           ),
         ),
         const SizedBox(height: 24),
@@ -264,6 +264,7 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
               style: TextStyle(
                 fontSize: 14,
                 color: Colors.grey[600],
+                fontWeight: FontWeight.w500,
               ),
             ),
             const SizedBox(height: 32),
@@ -385,34 +386,45 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
           style: const TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.w500,
+            color: Colors.black87, // IMPROVED: Better text color
           ),
           decoration: InputDecoration(
             hintText: hint,
-            prefixIcon: Icon(icon, color: Colors.grey[600]),
+            hintStyle: TextStyle(
+              color: Colors.grey[500],
+              fontWeight: FontWeight.w400,
+            ),
+            prefixIcon: Icon(icon, color: const Color(0xFF2E7D32)), // IMPROVED: Better icon color
             suffixIcon: suffixIcon,
             filled: true,
-            fillColor: Colors.grey[50],
+            fillColor: Colors.grey[50], // IMPROVED: Better background
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.grey[400]!, width: 2), // THICKER BORDER
+              borderSide: BorderSide(color: Colors.grey[300]!, width: 2),
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.grey[400]!, width: 2), // THICKER BORDER
+              borderSide: BorderSide(color: Colors.grey[300]!, width: 2),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Color(0xFF2E7D32), width: 3), // EVEN THICKER ON FOCUS
+              borderSide: const BorderSide(color: Color(0xFF2E7D32), width: 3),
             ),
             errorBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Colors.red, width: 2), // THICKER ERROR BORDER
+              borderSide: const BorderSide(color: Colors.red, width: 2),
             ),
             focusedErrorBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Colors.red, width: 3), // THICKER FOCUSED ERROR BORDER
+              borderSide: const BorderSide(color: Colors.red, width: 3),
             ),
             contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            // IMPROVED: Better error style
+            errorStyle: const TextStyle(
+              color: Colors.red,
+              fontWeight: FontWeight.w500,
+              fontSize: 12,
+            ),
           ),
         ),
       ],
@@ -430,6 +442,7 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
             style: TextStyle(
               color: Colors.white.withValues(alpha: 0.9),
               fontSize: 14,
+              fontWeight: FontWeight.w500,
             ),
           ),
           GestureDetector(

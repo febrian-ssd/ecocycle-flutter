@@ -1,4 +1,4 @@
-// lib/providers/auth_provider.dart - FINAL FIXED VERSION with refreshUserData
+// lib/providers/auth_provider.dart - FIXED VERSION (Remove unnecessary casts)
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:ecocycle_app/services/api_service.dart';
@@ -48,6 +48,7 @@ class AuthProvider with ChangeNotifier {
       }
 
       _token = response['token'].toString();
+      // FIXED: Remove unnecessary cast
       _user = Map<String, dynamic>.from(response['user']);
       
       debugPrint('✅ Token set: ${_token!.substring(0, 10)}...');
@@ -125,6 +126,7 @@ class AuthProvider with ChangeNotifier {
       }
 
       _token = response['token'].toString();
+      // FIXED: Remove unnecessary cast
       _user = Map<String, dynamic>.from(response['user']);
 
       // Save to SharedPreferences

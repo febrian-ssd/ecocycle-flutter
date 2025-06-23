@@ -1,4 +1,4 @@
-// lib/screens/map_page.dart - FINAL MAPS IMPLEMENTATION WITH MULTIPLE FALLBACKS
+// lib/screens/map_page.dart - FIXED (Remove unused imports and fields)
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -7,7 +7,7 @@ import 'package:ecocycle_app/models/dropbox.dart';
 import 'package:ecocycle_app/providers/auth_provider.dart';
 import 'package:ecocycle_app/services/api_service.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:permission_handler/permission_handler.dart';
+
 
 class MapPage extends StatefulWidget {
   const MapPage({super.key});
@@ -23,7 +23,7 @@ class MapPageState extends State<MapPage> with TickerProviderStateMixin {
   bool _isLoading = true;
   List<Dropbox> _dropboxes = [];
   String _errorMessage = '';
-  bool _isMapReady = false;
+  // FIXED: Removed unused _isMapReady field
   
   late AnimationController _fadeController;
   late AnimationController _bounceController;
@@ -361,40 +361,35 @@ class MapPageState extends State<MapPage> with TickerProviderStateMixin {
   Widget _buildMapContainer() {
     return ScaleTransition(
       scale: _bounceAnimation,
-      child: Container(
-        child: GoogleMap(
-          mapType: MapType.normal,
-          initialCameraPosition: _kMedan,
-          style: _getMapStyle(),
-          onMapCreated: (GoogleMapController controller) async {
-            try {
-              if (!_controller.isCompleted) {
-                _controller.complete(controller);
-                setState(() {
-                  _isMapReady = true;
-                });
-                debugPrint('✅ Map controller completed');
-                
-                // Auto-fit bounds if there are dropboxes
-                if (_dropboxes.isNotEmpty) {
-                  _fitMapBounds(controller);
-                }
+      child: GoogleMap(
+        mapType: MapType.normal,
+        initialCameraPosition: _kMedan,
+        style: _getMapStyle(),
+        onMapCreated: (GoogleMapController controller) async {
+          try {
+            if (!_controller.isCompleted) {
+              _controller.complete(controller);
+              debugPrint('✅ Map controller completed');
+              
+              // Auto-fit bounds if there are dropboxes
+              if (_dropboxes.isNotEmpty) {
+                _fitMapBounds(controller);
               }
-            } catch (e) {
-              debugPrint('❌ Error completing map controller: $e');
             }
-          },
-          markers: _markers,
-          zoomControlsEnabled: false,
-          myLocationButtonEnabled: false,
-          compassEnabled: false,
-          mapToolbarEnabled: false,
-          trafficEnabled: false,
-          buildingsEnabled: true,
-          onTap: (LatLng position) {
-            debugPrint('📍 Map tapped at: ${position.latitude}, ${position.longitude}');
-          },
-        ),
+          } catch (e) {
+            debugPrint('❌ Error completing map controller: $e');
+          }
+        },
+        markers: _markers,
+        zoomControlsEnabled: false,
+        myLocationButtonEnabled: false,
+        compassEnabled: false,
+        mapToolbarEnabled: false,
+        trafficEnabled: false,
+        buildingsEnabled: true,
+        onTap: (LatLng position) {
+          debugPrint('📍 Map tapped at: ${position.latitude}, ${position.longitude}');
+        },
       ),
     );
   }
@@ -761,4 +756,6 @@ class MapPageState extends State<MapPage> with TickerProviderStateMixin {
     _showSnackBar('Membuka navigasi ke ${dropbox.locationName}');
     // Here you could integrate with external maps apps
   }
+
+  // FIXED: Remove unnecessary Container around map
 }

@@ -1,4 +1,4 @@
-// lib/screens/history_page.dart - FIXED WITH FALLBACK SUPPORT
+// lib/screens/history_page.dart - FIXED (Remove unused field)
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:ecocycle_app/providers/auth_provider.dart';
@@ -18,7 +18,7 @@ class _HistoryPageState extends State<HistoryPage> with TickerProviderStateMixin
   List<Map<String, dynamic>> _transactionHistory = [];
   Map<String, dynamic> _scanStats = {};
   bool _isLoading = true;
-  int _selectedTabIndex = 0;
+  // FIXED: Removed unused _selectedTabIndex field
   
   late TabController _tabController;
   late AnimationController _fadeController;
@@ -28,13 +28,7 @@ class _HistoryPageState extends State<HistoryPage> with TickerProviderStateMixin
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
-    _tabController.addListener(() {
-      if (mounted) {
-        setState(() {
-          _selectedTabIndex = _tabController.index;
-        });
-      }
-    });
+    // FIXED: Removed listener that set unused _selectedTabIndex
     _initAnimations();
     _loadData();
   }
