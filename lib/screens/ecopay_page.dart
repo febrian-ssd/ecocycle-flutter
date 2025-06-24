@@ -8,6 +8,7 @@ import 'package:ecocycle_app/screens/transfer_screen.dart';
 import 'package:ecocycle_app/screens/tukar_koin_screen.dart';
 import 'package:ecocycle_app/screens/isi_saldo_screen.dart';
 import 'package:ecocycle_app/utils/conversion_utils.dart';
+import 'package:ecocycle_app/utils/auto_refresh_mixin.dart';
 
 class EcoPayPage extends StatefulWidget {
   const EcoPayPage({super.key});
@@ -16,7 +17,8 @@ class EcoPayPage extends StatefulWidget {
   State<EcoPayPage> createState() => _EcoPayPageState();
 }
 
-class _EcoPayPageState extends State<EcoPayPage> with TickerProviderStateMixin {
+class _EcoPayPageState extends State<EcoPayPage> 
+    with TickerProviderStateMixin, AutoRefreshMixin {
   final ApiService _apiService = ApiService();
   bool _isLoading = true;
   double _balanceRp = 0.0;
@@ -29,11 +31,34 @@ class _EcoPayPageState extends State<EcoPayPage> with TickerProviderStateMixin {
   late Animation<Offset> _slideAnimation;
 
   @override
-  void initState() {
-    super.initState();
-    _initAnimations();
-    _loadWalletData();
+  Duration get refreshInterval => const Duration(seconds: 15);
+
+  @override
+Future<void> onAutoRefresh() async {
+  if (!mounted) return;
+  
+  try {
+    debugPrint('🔄 EcoPay auto-refresh triggered');
+    await _loadWalletData();
+    await refreshAuthData();
+  } catch (e) {
+    debugPrint('❌ EcoPay auto-refresh failed: $e');
   }
+}
+
+  @override
+void initState() {
+  super.initState();
+  _initAnimations();
+  _loadWalletData();
+  
+  // Start auto-refresh after initial load
+  Future.delayed(const Duration(seconds: 5), () {
+    if (mounted) {
+      startAutoRefresh();
+    }
+  });
+}
 
   void _initAnimations() {
     _fadeController = AnimationController(
@@ -60,28 +85,35 @@ class _EcoPayPageState extends State<EcoPayPage> with TickerProviderStateMixin {
     super.dispose();
   }
 
-  Future<void> _loadWalletData() async {
-    try {
-      final token = Provider.of<AuthProvider>(context, listen: false).token;
-      if (token != null) {
-        final walletData = await _apiService.getWallet(token);
-        final transactions = await _apiService.getTransactions(token);
+  Future<void> _loadWalletData({bool showLoading = true}) async {
+  try {
+    final token = Provider.of<AuthProvider>(context, listen: false).token;
+    if (token != null) {
+      if (showLoading) {
+        setState(() => _isLoading = true);
+      }
+      
+      final walletData = await _apiService.getWallet(token);
+      final transactions = await _apiService.getTransactions(token);
+      
+      if (mounted) {
+        setState(() {
+          _balanceRp = ConversionUtils.toDouble(walletData['balance_rp']);
+          _balanceCoins = ConversionUtils.toInt(walletData['balance_coins']);
+          _transactions = transactions;
+          _isLoading = false;
+        });
         
-        if (mounted) {
-          setState(() {
-            _balanceRp = ConversionUtils.toDouble(walletData['balance_rp']);
-            _balanceCoins = ConversionUtils.toInt(walletData['balance_coins']);
-            _transactions = transactions;
-            _isLoading = false;
-          });
-          
+        if (showLoading) {
           _fadeController.forward();
           _slideController.forward();
         }
       }
-    } catch (e) {
-      if (mounted) {
-        setState(() => _isLoading = false);
+    }
+  } catch (e) {
+    if (mounted) {
+      setState(() => _isLoading = false);
+      if (showLoading) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
@@ -96,11 +128,12 @@ class _EcoPayPageState extends State<EcoPayPage> with TickerProviderStateMixin {
       }
     }
   }
+}
 
   Future<void> _refreshData() async {
-    setState(() => _isLoading = true);
-    await _loadWalletData();
-  }
+  await _loadWalletData(showLoading: false);
+  await refreshAuthData();
+}
 
   @override
   Widget build(BuildContext context) {

@@ -1,7 +1,8 @@
-// lib/providers/auth_provider.dart - FIXED VERSION (Remove unnecessary casts)
+// lib/providers/auth_provider.dart - IMPROVED VERSION with better auto-login
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:ecocycle_app/services/api_service.dart';
+import 'dart:convert';
 
 class AuthProvider with ChangeNotifier {
   final ApiService _apiService = ApiService();
@@ -9,12 +10,70 @@ class AuthProvider with ChangeNotifier {
   String? _token;
   Map<String, dynamic>? _user;
   bool _isLoading = false;
+  bool _isInitialized = false;
 
   String? get token => _token;
   Map<String, dynamic>? get user => _user;
   bool get isLoading => _isLoading;
   bool get isAuthenticated => _token != null && _token!.isNotEmpty;
   bool get isLoggedIn => isAuthenticated;
+  bool get isInitialized => _isInitialized;
+
+  // Initialize and check saved auth state
+  Future<void> initializeAuth() async {
+    debugPrint('🔄 AuthProvider.initializeAuth() START');
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final savedToken = prefs.getString('auth_token');
+      final savedUserData = prefs.getString('user_data');
+      
+      if (savedToken != null && savedToken.isNotEmpty) {
+        debugPrint('✅ Found saved token: ${savedToken.substring(0, 10)}...');
+        
+        // Try to validate token with server
+        try {
+          final userInfo = await _apiService.getProfile(savedToken);
+          
+          _token = savedToken;
+          _user = Map<String, dynamic>.from(userInfo);
+          
+          // Update saved user data with latest from server
+          await prefs.setString('user_data', json.encode(_user));
+          
+          debugPrint('✅ Auto-login successful with server validation');
+        } catch (e) {
+          debugPrint('❌ Token validation failed: $e');
+          
+          // Token is invalid, try using saved user data anyway
+          if (savedUserData != null && savedUserData.isNotEmpty) {
+            try {
+              _token = savedToken;
+              _user = json.decode(savedUserData);
+              debugPrint('⚠️ Using saved user data without server validation');
+            } catch (parseError) {
+              debugPrint('❌ Failed to parse saved user data: $parseError');
+              await _clearSavedAuth();
+            }
+          } else {
+            await _clearSavedAuth();
+          }
+        }
+      } else {
+        debugPrint('❌ No saved authentication found');
+      }
+      
+    } catch (e) {
+      debugPrint('❌ InitializeAuth error: $e');
+    } finally {
+      _isLoading = false;
+      _isInitialized = true;
+      notifyListeners();
+      debugPrint('✅ Auth initialization complete. isLoggedIn: $isLoggedIn');
+    }
+  }
 
   // Enhanced login method with better debugging
   Future<bool> login(String email, String password) async {
@@ -34,7 +93,6 @@ class AuthProvider with ChangeNotifier {
       
       debugPrint('✅ API response received');
       debugPrint('📊 Response keys: ${response.keys}');
-      debugPrint('📊 Response structure: ${response.runtimeType}');
 
       // Enhanced response validation
       if (response['token'] == null || response['token'].toString().isEmpty) {
@@ -48,7 +106,6 @@ class AuthProvider with ChangeNotifier {
       }
 
       _token = response['token'].toString();
-      // FIXED: Remove unnecessary cast
       _user = Map<String, dynamic>.from(response['user']);
       
       debugPrint('✅ Token set: ${_token!.substring(0, 10)}...');
@@ -58,7 +115,7 @@ class AuthProvider with ChangeNotifier {
       try {
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('auth_token', _token!);
-        await prefs.setString('user_data', _user.toString());
+        await prefs.setString('user_data', json.encode(_user));
         debugPrint('✅ Data saved to SharedPreferences');
       } catch (e) {
         debugPrint('⚠️ Failed to save to SharedPreferences: $e');
@@ -94,6 +151,8 @@ class AuthProvider with ChangeNotifier {
         throw Exception('Koneksi timeout. Coba lagi.');
       } else if (e.toString().contains('401')) {
         throw Exception('Email atau password salah.');
+      } else if (e.toString().contains('405')) {
+        throw Exception('Server sedang maintenance. Coba lagi nanti.');
       } else if (e.toString().contains('422')) {
         throw Exception('Data tidak valid. Periksa format email dan password.');
       } else if (e.toString().contains('500')) {
@@ -126,14 +185,13 @@ class AuthProvider with ChangeNotifier {
       }
 
       _token = response['token'].toString();
-      // FIXED: Remove unnecessary cast
       _user = Map<String, dynamic>.from(response['user']);
 
       // Save to SharedPreferences
       try {
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('auth_token', _token!);
-        await prefs.setString('user_data', _user.toString());
+        await prefs.setString('user_data', json.encode(_user));
       } catch (e) {
         debugPrint('⚠️ Failed to save to SharedPreferences: $e');
       }
@@ -152,47 +210,15 @@ class AuthProvider with ChangeNotifier {
     }
   }
 
-  // Enhanced auto-login
+  // Enhanced auto-login (deprecated, use initializeAuth instead)
   Future<bool> tryAutoLogin() async {
     debugPrint('🔄 AuthProvider.tryAutoLogin() START');
     
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('auth_token');
-      
-      if (token == null || token.isEmpty) {
-        debugPrint('❌ No saved token found');
-        return false;
-      }
-
-      debugPrint('✅ Found saved token: ${token.substring(0, 10)}...');
-      
-      // Validate token with API
-      try {
-        final userInfo = await _apiService.getProfile(token);
-        
-        _token = token;
-        _user = Map<String, dynamic>.from(userInfo);
-            
-        notifyListeners();
-        
-        debugPrint('✅ Auto-login successful');
-        return true;
-        
-      } catch (e) {
-        debugPrint('❌ Token validation failed: $e');
-        
-        // Clear invalid token
-        await prefs.remove('auth_token');
-        await prefs.remove('user_data');
-        
-        return false;
-      }
-      
-    } catch (e) {
-      debugPrint('❌ Auto-login error: $e');
-      return false;
+    if (!_isInitialized) {
+      await initializeAuth();
     }
+    
+    return isLoggedIn;
   }
 
   // Enhanced logout
@@ -208,6 +234,12 @@ class AuthProvider with ChangeNotifier {
       debugPrint('⚠️ Server logout failed: $e');
     }
 
+    await _clearSavedAuth();
+    debugPrint('✅ Logout complete');
+  }
+
+  // Clear saved authentication data
+  Future<void> _clearSavedAuth() async {
     // Clear local state
     _token = null;
     _user = null;
@@ -223,37 +255,12 @@ class AuthProvider with ChangeNotifier {
     }
 
     notifyListeners();
-    debugPrint('✅ Logout complete');
   }
 
-  // Enhanced load auth state
+  // Enhanced load auth state (deprecated, use initializeAuth instead)
   Future<void> loadAuthState() async {
-    debugPrint('🔄 AuthProvider.loadAuthState() START');
-    
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      _token = prefs.getString('auth_token');
-
-      if (_token != null && _token!.isNotEmpty) {
-        debugPrint('✅ Found token: ${_token!.substring(0, 10)}...');
-        
-        try {
-          final userInfo = await _apiService.getProfile(_token!);
-          _user = Map<String, dynamic>.from(userInfo);
-              
-          notifyListeners();
-          debugPrint('✅ Auth state loaded successfully');
-          
-        } catch (e) {
-          debugPrint('❌ Failed to load user info: $e');
-          await logout();
-        }
-      } else {
-        debugPrint('❌ No valid token found');
-      }
-    } catch (e) {
-      debugPrint('❌ LoadAuthState error: $e');
-    }
+    debugPrint('🔄 AuthProvider.loadAuthState() START - Redirecting to initializeAuth');
+    await initializeAuth();
   }
 
   // Enhanced update profile
@@ -271,6 +278,14 @@ class AuthProvider with ChangeNotifier {
       // Get updated user info
       final userInfo = await _apiService.getProfile(_token!);
       _user = Map<String, dynamic>.from(userInfo);
+
+      // Save updated user data
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('user_data', json.encode(_user));
+      } catch (e) {
+        debugPrint('⚠️ Failed to save updated user data: $e');
+      }
 
       _isLoading = false;
       notifyListeners();
@@ -292,6 +307,14 @@ class AuthProvider with ChangeNotifier {
     try {
       final userInfo = await _apiService.getProfile(_token!);
       _user = Map<String, dynamic>.from(userInfo);
+      
+      // Save refreshed user data
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('user_data', json.encode(_user));
+      } catch (e) {
+        debugPrint('⚠️ Failed to save refreshed user data: $e');
+      }
           
       notifyListeners();
       debugPrint('✅ User data refreshed');
@@ -319,6 +342,14 @@ class AuthProvider with ChangeNotifier {
         _user!['balance_coins'] = walletData['balance_coins'];
         _user!['eco_coins'] = walletData['balance_coins']; // Alias for compatibility
         
+        // Save updated user data
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString('user_data', json.encode(_user));
+        } catch (e) {
+          debugPrint('⚠️ Failed to save wallet data: $e');
+        }
+        
         notifyListeners();
         debugPrint('✅ Wallet data refreshed');
       }
@@ -339,14 +370,22 @@ class AuthProvider with ChangeNotifier {
         _apiService.getWallet(_token!),
       ]);
       
-      final userInfo = futures[0] as Map<String, dynamic>;
-      final walletData = futures[1] as Map<String, dynamic>;
+      final userInfo = Map<String, dynamic>.from(futures[0]);
+      final walletData = Map<String, dynamic>.from(futures[1]);
       
       // Merge user and wallet data
       _user = Map<String, dynamic>.from(userInfo);
       _user!['balance_rp'] = walletData['balance_rp'];
       _user!['balance_coins'] = walletData['balance_coins'];
       _user!['eco_coins'] = walletData['balance_coins'];
+      
+      // Save all updated data
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('user_data', json.encode(_user));
+      } catch (e) {
+        debugPrint('⚠️ Failed to save all refreshed data: $e');
+      }
       
       notifyListeners();
       debugPrint('✅ All user data refreshed');
@@ -362,6 +401,7 @@ class AuthProvider with ChangeNotifier {
     debugPrint('   isAuthenticated: $isAuthenticated');
     debugPrint('   isLoggedIn: $isLoggedIn');
     debugPrint('   isLoading: $isLoading');
+    debugPrint('   isInitialized: $isInitialized');
     debugPrint('   token: ${_token?.substring(0, 10)}...');
     debugPrint('   user: ${_user?.keys}');
     debugPrint('   user name: ${_user?['name']}');

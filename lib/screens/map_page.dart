@@ -1,4 +1,4 @@
-// lib/screens/map_page.dart - FIXED (Remove unused imports and fields)
+// lib/screens/map_page.dart - COMPLETE VERSION with fixed map style
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -7,7 +7,6 @@ import 'package:ecocycle_app/models/dropbox.dart';
 import 'package:ecocycle_app/providers/auth_provider.dart';
 import 'package:ecocycle_app/services/api_service.dart';
 import 'package:geolocator/geolocator.dart';
-
 
 class MapPage extends StatefulWidget {
   const MapPage({super.key});
@@ -23,7 +22,6 @@ class MapPageState extends State<MapPage> with TickerProviderStateMixin {
   bool _isLoading = true;
   List<Dropbox> _dropboxes = [];
   String _errorMessage = '';
-  // FIXED: Removed unused _isMapReady field
   
   late AnimationController _fadeController;
   late AnimationController _bounceController;
@@ -364,7 +362,7 @@ class MapPageState extends State<MapPage> with TickerProviderStateMixin {
       child: GoogleMap(
         mapType: MapType.normal,
         initialCameraPosition: _kMedan,
-        style: _getMapStyle(),
+        style: _getMapStyle(), // FIXED: Better map style
         onMapCreated: (GoogleMapController controller) async {
           try {
             if (!_controller.isCompleted) {
@@ -394,55 +392,95 @@ class MapPageState extends State<MapPage> with TickerProviderStateMixin {
     );
   }
 
+  // FIXED: Better map style that shows roads and places clearly
   String _getMapStyle() {
     return '''
     [
       {
         "elementType": "geometry",
-        "stylers": [{"color": "#1d2c4d"}]
+        "stylers": [{"color": "#f5f5f5"}]
+      },
+      {
+        "elementType": "labels.icon",
+        "stylers": [{"visibility": "on"}]
       },
       {
         "elementType": "labels.text.fill",
-        "stylers": [{"color": "#8ec3b9"}]
+        "stylers": [{"color": "#616161"}]
       },
       {
         "elementType": "labels.text.stroke",
-        "stylers": [{"color": "#1a3646"}]
+        "stylers": [{"color": "#f5f5f5"}]
       },
       {
-        "featureType": "administrative.country",
-        "elementType": "geometry.stroke",
-        "stylers": [{"color": "#4b6878"}]
-      },
-      {
-        "featureType": "landscape.natural",
-        "elementType": "geometry",
-        "stylers": [{"color": "#023e58"}]
+        "featureType": "administrative.land_parcel",
+        "elementType": "labels.text.fill",
+        "stylers": [{"color": "#bdbdbd"}]
       },
       {
         "featureType": "poi",
         "elementType": "geometry",
-        "stylers": [{"color": "#283d6a"}]
+        "stylers": [{"color": "#eeeeee"}]
+      },
+      {
+        "featureType": "poi",
+        "elementType": "labels.text.fill",
+        "stylers": [{"color": "#757575"}]
       },
       {
         "featureType": "poi.park",
-        "elementType": "geometry.fill",
-        "stylers": [{"color": "#023e58"}]
+        "elementType": "geometry",
+        "stylers": [{"color": "#e5e5e5"}]
+      },
+      {
+        "featureType": "poi.park",
+        "elementType": "labels.text.fill",
+        "stylers": [{"color": "#9e9e9e"}]
       },
       {
         "featureType": "road",
         "elementType": "geometry",
-        "stylers": [{"color": "#304a7d"}]
+        "stylers": [{"color": "#ffffff"}]
+      },
+      {
+        "featureType": "road.arterial",
+        "elementType": "labels.text.fill",
+        "stylers": [{"color": "#757575"}]
       },
       {
         "featureType": "road.highway",
         "elementType": "geometry",
-        "stylers": [{"color": "#2c6675"}]
+        "stylers": [{"color": "#dadada"}]
+      },
+      {
+        "featureType": "road.highway",
+        "elementType": "labels.text.fill",
+        "stylers": [{"color": "#616161"}]
+      },
+      {
+        "featureType": "road.local",
+        "elementType": "labels.text.fill",
+        "stylers": [{"color": "#9e9e9e"}]
+      },
+      {
+        "featureType": "transit.line",
+        "elementType": "geometry",
+        "stylers": [{"color": "#e5e5e5"}]
+      },
+      {
+        "featureType": "transit.station",
+        "elementType": "geometry",
+        "stylers": [{"color": "#eeeeee"}]
       },
       {
         "featureType": "water",
         "elementType": "geometry",
-        "stylers": [{"color": "#0e1626"}]
+        "stylers": [{"color": "#c9c9c9"}]
+      },
+      {
+        "featureType": "water",
+        "elementType": "labels.text.fill",
+        "stylers": [{"color": "#9e9e9e"}]
       }
     ]
     ''';
@@ -756,6 +794,4 @@ class MapPageState extends State<MapPage> with TickerProviderStateMixin {
     _showSnackBar('Membuka navigasi ke ${dropbox.locationName}');
     // Here you could integrate with external maps apps
   }
-
-  // FIXED: Remove unnecessary Container around map
 }

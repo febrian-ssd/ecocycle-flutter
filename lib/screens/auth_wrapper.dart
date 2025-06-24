@@ -1,4 +1,4 @@
-// lib/screens/auth_wrapper.dart - ENHANCED DEBUG VERSION
+// lib/screens/auth_wrapper.dart - IMPROVED VERSION with better initialization
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:ecocycle_app/providers/auth_provider.dart';
@@ -17,6 +17,20 @@ class _AuthWrapperState extends State<AuthWrapper> {
   void initState() {
     super.initState();
     debugPrint('🏠 AuthWrapper initialized');
+    
+    // Initialize auth state when AuthWrapper is created
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initializeAuth();
+    });
+  }
+
+  Future<void> _initializeAuth() async {
+    debugPrint('🏠 AuthWrapper initializing auth...');
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    
+    if (!authProvider.isInitialized) {
+      await authProvider.initializeAuth();
+    }
   }
 
   @override
@@ -30,23 +44,47 @@ class _AuthWrapperState extends State<AuthWrapper> {
         debugPrint('   isLoggedIn: ${auth.isLoggedIn}');
         debugPrint('   isAuthenticated: ${auth.isAuthenticated}');
         debugPrint('   isLoading: ${auth.isLoading}');
+        debugPrint('   isInitialized: ${auth.isInitialized}');
         debugPrint('   token: ${auth.token?.substring(0, 10) ?? 'null'}...');
         debugPrint('   user: ${auth.user?.keys ?? 'null'}');
 
-        // Show loading screen if loading
-        if (auth.isLoading) {
-          debugPrint('🏠 Showing loading screen');
+        // Show loading screen while initializing or processing
+        if (auth.isLoading || !auth.isInitialized) {
+          debugPrint('🏠 Showing loading screen (loading: ${auth.isLoading}, initialized: ${auth.isInitialized})');
           return const Scaffold(
-            backgroundColor: Color(0xFF424242),
+            backgroundColor: Color(0xFF121212),
             body: Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  CircularProgressIndicator(color: Colors.orange),
+                  // Logo
+                  Icon(
+                    Icons.eco,
+                    size: 80,
+                    color: Color(0xFF4CAF50),
+                  ),
+                  SizedBox(height: 24),
+                  Text(
+                    'EcoCycle',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 32,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  SizedBox(height: 40),
+                  CircularProgressIndicator(
+                    color: Color(0xFF4CAF50),
+                    strokeWidth: 3,
+                  ),
                   SizedBox(height: 16),
                   Text(
                     'Loading...',
-                    style: TextStyle(color: Colors.white),
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                 ],
               ),
@@ -54,65 +92,20 @@ class _AuthWrapperState extends State<AuthWrapper> {
           );
         }
 
-        // If already logged in, show home screen
-        if (auth.isLoggedIn) {
-          debugPrint('✅ User is logged in, showing HomeScreen');
+        // If authenticated, show home screen
+        if (auth.isLoggedIn && auth.isAuthenticated) {
+          debugPrint('✅ User is authenticated, showing HomeScreen');
           return const HomeScreen();
         } else {
-          debugPrint('❌ User not logged in, checking auto-login...');
-          
-          // Try auto-login
-          return FutureBuilder<bool>(
-            future: auth.tryAutoLogin(),
-            builder: (ctx, authResultSnapshot) {
-              debugPrint('🔄 FutureBuilder state: ${authResultSnapshot.connectionState}');
-              debugPrint('🔄 FutureBuilder hasData: ${authResultSnapshot.hasData}');
-              debugPrint('🔄 FutureBuilder data: ${authResultSnapshot.data}');
-              debugPrint('🔄 FutureBuilder hasError: ${authResultSnapshot.hasError}');
-              
-              if (authResultSnapshot.hasError) {
-                debugPrint('❌ Auto-login error: ${authResultSnapshot.error}');
-              }
-              
-              if (authResultSnapshot.connectionState == ConnectionState.waiting) {
-                debugPrint('⏳ Auto-login in progress, showing loading');
-                return const Scaffold(
-                  backgroundColor: Color(0xFF424242),
-                  body: Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        CircularProgressIndicator(color: Colors.orange),
-                        SizedBox(height: 16),
-                        Text(
-                          'Checking authentication...',
-                          style: TextStyle(color: Colors.white),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              }
-              
-              // Check auth state again after auto-login attempt
-              debugPrint('🔍 After auto-login - isLoggedIn: ${auth.isLoggedIn}');
-              
-              if (auth.isLoggedIn) {
-                debugPrint('✅ Auto-login successful, showing HomeScreen');
-                return const HomeScreen();
-              } else {
-                debugPrint('❌ Auto-login failed or no saved credentials, showing LoginScreen');
-                return const LoginScreen();
-              }
-            },
-          );
+          debugPrint('❌ User not authenticated, showing LoginScreen');
+          return const LoginScreen();
         }
       },
     );
   }
 }
 
-// Alternative simplified AuthWrapper for testing
+// Alternative simple AuthWrapper for testing without auto-login
 class SimpleAuthWrapper extends StatelessWidget {
   const SimpleAuthWrapper({super.key});
 
@@ -122,7 +115,7 @@ class SimpleAuthWrapper extends StatelessWidget {
       builder: (context, auth, _) {
         debugPrint('🏠 SimpleAuthWrapper - isLoggedIn: ${auth.isLoggedIn}');
         
-        // Simple direct check
+        // Simple direct check without auto-initialization
         if (auth.isLoggedIn) {
           return const HomeScreen();
         } else {
@@ -142,8 +135,9 @@ class AuthDebugScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Auth Debug'),
-        backgroundColor: Colors.orange,
+        backgroundColor: const Color(0xFF4CAF50),
       ),
+      backgroundColor: const Color(0xFF121212),
       body: Consumer<AuthProvider>(
         builder: (context, auth, _) {
           return Padding(
@@ -151,39 +145,106 @@ class AuthDebugScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('isLoggedIn: ${auth.isLoggedIn}'),
-                Text('isAuthenticated: ${auth.isAuthenticated}'),
-                Text('isLoading: ${auth.isLoading}'),
-                Text('token: ${auth.token ?? 'null'}'),
-                Text('user: ${auth.user ?? 'null'}'),
+                Text(
+                  'Authentication Debug Info',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
                 const SizedBox(height: 20),
                 
-                ElevatedButton(
-                  onPressed: () {
-                    auth.debugCurrentState();
-                  },
-                  child: const Text('Print Debug Info'),
-                ),
+                _buildDebugRow('isLoggedIn', auth.isLoggedIn.toString()),
+                _buildDebugRow('isAuthenticated', auth.isAuthenticated.toString()),
+                _buildDebugRow('isLoading', auth.isLoading.toString()),
+                _buildDebugRow('isInitialized', auth.isInitialized.toString()),
+                _buildDebugRow('token', auth.token?.substring(0, 20) ?? 'null'),
+                _buildDebugRow('user', auth.user?.toString() ?? 'null'),
                 
-                ElevatedButton(
-                  onPressed: () {
-                    Navigator.of(context).pushReplacement(
-                      MaterialPageRoute(builder: (context) => const HomeScreen()),
-                    );
-                  },
-                  child: const Text('Force Navigate to Home'),
-                ),
+                const SizedBox(height: 30),
                 
-                ElevatedButton(
-                  onPressed: () {
-                    auth.logout();
-                  },
-                  child: const Text('Logout'),
+                // Action buttons
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
+                  children: [
+                    ElevatedButton(
+                      onPressed: () {
+                        auth.debugCurrentState();
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF4CAF50),
+                      ),
+                      child: const Text('Print Debug Info'),
+                    ),
+                    
+                    ElevatedButton(
+                      onPressed: () async {
+                        await auth.initializeAuth();
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blue,
+                      ),
+                      child: const Text('Re-initialize Auth'),
+                    ),
+                    
+                    ElevatedButton(
+                      onPressed: () {
+                        Navigator.of(context).pushReplacement(
+                          MaterialPageRoute(builder: (context) => const HomeScreen()),
+                        );
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.orange,
+                      ),
+                      child: const Text('Force Navigate to Home'),
+                    ),
+                    
+                    ElevatedButton(
+                      onPressed: () {
+                        auth.logout();
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red,
+                      ),
+                      child: const Text('Logout'),
+                    ),
+                  ],
                 ),
               ],
             ),
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildDebugRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 120,
+            child: Text(
+              '$label:',
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(
+                color: Colors.white70,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

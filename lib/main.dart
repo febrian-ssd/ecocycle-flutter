@@ -1,4 +1,4 @@
-// lib/main.dart
+// lib/main.dart - UPDATED VERSION with proper auth initialization
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:ecocycle_app/providers/auth_provider.dart';
@@ -14,10 +14,22 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
-      create: (ctx) => AuthProvider(),
+      create: (ctx) {
+        final authProvider = AuthProvider();
+        // Initialize auth state when app starts
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          authProvider.initializeAuth();
+        });
+        return authProvider;
+      },
       child: MaterialApp(
         title: 'EcoCycle',
-        theme: ThemeData(brightness: Brightness.dark),
+        theme: ThemeData(
+          brightness: Brightness.dark,
+          primarySwatch: Colors.green,
+          primaryColor: const Color(0xFF4CAF50),
+          scaffoldBackgroundColor: const Color(0xFF121212),
+        ),
         debugShowCheckedModeBanner: false,
         home: const AuthWrapper(),
       ),
