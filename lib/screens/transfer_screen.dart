@@ -72,108 +72,109 @@ class _TransferScreenState extends State<TransferScreen> with TickerProviderStat
   }
 
   Future<void> _performTransfer() async {
-  if (!_formKey.currentState!.validate()) return;
+    if (!_formKey.currentState!.validate()) return;
 
-  setState(() => _isLoading = true);
+    setState(() => _isLoading = true);
 
-  try {
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    final token = authProvider.token;
-    
-    if (token == null) {
-      throw Exception('Token tidak ditemukan. Silakan login kembali.');
-    }
-
-    final amount = ConversionUtils.toDouble(_amountController.text);
-    
-    if (amount > _currentBalance) {
-      throw Exception('Saldo tidak mencukupi untuk transfer sebesar ${ConversionUtils.formatCurrency(amount)}');
-    }
-
-    debugPrint('🔄 Starting transfer process...');
-    
     try {
-      // Attempt the transfer
-      final transferResult = await _apiService.transfer(
-        token,
-        email: _emailController.text.trim(),
-        amount: amount,
-        description: _descriptionController.text.trim(),
-      );
-
-      debugPrint('✅ Transfer API call successful: $transferResult');
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final token = authProvider.token;
       
-      // Refresh user data after successful transfer
-      await authProvider.refreshAllData();
-      
-      if (mounted) {
-        _showSnackBar('Transfer berhasil!', isError: false);
-        
-        // Navigate to success screen
-        Navigator.pushReplacement(
-          context,
-          PageRouteBuilder(
-            pageBuilder: (context, animation, secondaryAnimation) => 
-                TransferBerhasilScreen(
-                  amount: amount,
-                  recipientEmail: _emailController.text.trim(),
-                ),
-            transitionsBuilder: (context, animation, secondaryAnimation, child) {
-              return SlideTransition(
-                position: Tween<Offset>(
-                  begin: const Offset(1.0, 0.0),
-                  end: Offset.zero,
-                ).animate(animation),
-                child: child,
-              );
-            },
-          ),
-        ).then((_) {
-          // Return true to indicate success
-          Navigator.pop(context, true);
-        });
+      if (token == null) {
+        throw Exception('Token tidak ditemukan. Silakan login kembali.');
       }
+
+      final amount = ConversionUtils.toDouble(_amountController.text);
       
-    } catch (apiError) {
-      debugPrint('⚠️ Transfer API error (but might have succeeded): $apiError');
+      if (amount > _currentBalance) {
+        throw Exception('Saldo tidak mencukupi untuk transfer sebesar ${ConversionUtils.formatCurrency(amount)}');
+      }
+
+      debugPrint('🔄 Starting transfer process...');
       
-      // Even if API returns error, the transfer might have gone through
-      // Let's refresh data and show a cautious success message
       try {
+        // Attempt the transfer
+        await _apiService.transfer(
+          token,
+          email: _emailController.text.trim(),
+          amount: amount,
+          description: _descriptionController.text.trim(),
+        );
+
+        debugPrint('✅ Transfer successful');
+        
+        // Refresh user data after successful transfer
+        await Future.delayed(const Duration(seconds: 1));
         await authProvider.refreshAllData();
         
         if (mounted) {
-          _showSnackBar(
-            'Transfer sedang diproses. Silakan cek saldo terbaru di halaman EcoPay.',
-            isError: false
-          );
-          
-          // Wait a moment then navigate back
-          Future.delayed(const Duration(seconds: 2), () {
-            if (mounted) {
-              Navigator.pop(context, true);
-            }
+          // Navigate to success screen
+          Navigator.pushReplacement(
+            context,
+            PageRouteBuilder(
+              pageBuilder: (context, animation, secondaryAnimation) => 
+                  TransferBerhasilScreen(
+                    amount: amount,
+                    recipientEmail: _emailController.text.trim(),
+                  ),
+              transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                return SlideTransition(
+                  position: Tween<Offset>(
+                    begin: const Offset(1.0, 0.0),
+                    end: Offset.zero,
+                  ).animate(animation),
+                  child: child,
+                );
+              },
+            ),
+          ).then((_) {
+            // Return true to indicate success
+            Navigator.pop(context, true);
           });
         }
-      } catch (refreshError) {
-        debugPrint('❌ Refresh after transfer also failed: $refreshError');
-        throw apiError; // Re-throw original error
+        
+      } catch (apiError) {
+        debugPrint('❌ Transfer API error: $apiError');
+        
+        // Check if it's a server error but transfer might have succeeded
+        if (apiError.toString().contains('500') || 
+            apiError.toString().contains('502') ||
+            apiError.toString().contains('503')) {
+          
+          // Wait and refresh to check if transfer went through
+          await Future.delayed(const Duration(seconds: 2));
+          await authProvider.refreshAllData();
+          
+          if (mounted) {
+            _showSnackBar(
+              'Transfer sedang diproses. Silakan cek saldo terbaru di halaman EcoPay.',
+              isError: false
+            );
+            
+            Future.delayed(const Duration(seconds: 2), () {
+              if (mounted) {
+                Navigator.pop(context, true);
+              }
+            });
+          }
+        } else {
+          throw apiError; // Re-throw for other errors
+        }
+      }
+      
+    } catch (e) {
+      debugPrint('❌ Transfer failed: $e');
+      if (mounted) {
+        String errorMessage = e.toString().replaceFirst('Exception: ', '');
+        _showSnackBar('Transfer gagal: $errorMessage', isError: true);
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
       }
     }
-    
-  } catch (e) {
-    debugPrint('❌ Transfer failed: $e');
-    if (mounted) {
-      String errorMessage = e.toString().replaceFirst('Exception: ', '');
-      _showSnackBar('Transfer gagal: $errorMessage', isError: true);
-    }
-  } finally {
-    if (mounted) {
-      setState(() => _isLoading = false);
-    }
   }
-}
-
+  
   void _showSnackBar(String message, {bool isError = false}) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
