@@ -1,4 +1,4 @@
-// lib/screens/isi_saldo_screen.dart - Dark Elegant Theme
+// lib/screens/isi_saldo_screen.dart - COMPLETE FIXED VERSION
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:ecocycle_app/providers/auth_provider.dart';
@@ -99,18 +99,25 @@ class _IsiSaldoScreenState extends State<IsiSaldoScreen> with TickerProviderStat
 
       final amount = ConversionUtils.toDouble(_amountController.text);
 
-      await _apiService.topupRequest(
+      debugPrint('📤 Submitting topup request:');
+      debugPrint('   Amount: $amount');
+      debugPrint('   Method: $_selectedMethod');
+      debugPrint('   Token: ${token.substring(0, 10)}...');
+
+      final result = await _apiService.topupRequest(
         token,
         amount: amount,
         method: _selectedMethod,
       );
 
+      debugPrint('✅ Topup request successful: $result');
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Text(
-              'Permintaan top up berhasil dibuat!',
-              style: TextStyle(fontWeight: FontWeight.w600),
+            content: Text(
+              result['message'] ?? 'Permintaan top up berhasil dibuat!',
+              style: const TextStyle(fontWeight: FontWeight.w600),
             ),
             backgroundColor: Colors.green[700],
             behavior: SnackBarBehavior.floating,
@@ -121,8 +128,12 @@ class _IsiSaldoScreenState extends State<IsiSaldoScreen> with TickerProviderStat
         Navigator.pop(context, true);
       }
     } catch (e) {
+      debugPrint('❌ Topup request failed: $e');
+      
       if (mounted) {
         String errorMessage = e.toString().replaceFirst('Exception: ', '');
+        _showErrorDialog(errorMessage);
+        
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
@@ -132,6 +143,7 @@ class _IsiSaldoScreenState extends State<IsiSaldoScreen> with TickerProviderStat
             backgroundColor: Colors.red[700],
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            duration: const Duration(seconds: 5),
           ),
         );
       }
@@ -142,8 +154,274 @@ class _IsiSaldoScreenState extends State<IsiSaldoScreen> with TickerProviderStat
     }
   }
 
+  void _showErrorDialog(String errorMessage) {
+    final token = Provider.of<AuthProvider>(context, listen: false).token;
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF2A2A2A),
+        title: const Text(
+          'Debug - Topup Error',
+          style: TextStyle(color: Colors.white),
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Error Details:',
+                style: TextStyle(
+                  color: Colors.red[300],
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                errorMessage,
+                style: const TextStyle(color: Colors.white),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Request Details:',
+                style: TextStyle(
+                  color: Colors.blue[300],
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Amount: ${ConversionUtils.toDouble(_amountController.text)}\n'
+                'Method: $_selectedMethod\n'
+                'Token: ${token?.substring(0, 10) ?? 'null'}...',
+                style: const TextStyle(color: Colors.white70),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _debugApiConnection();
+            },
+            child: const Text('Test Connection'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _debugApiConnection() async {
+    debugPrint('🔍 Testing API connection...');
+    
+    setState(() => _isLoading = true);
+    
+    try {
+      await _apiService.testConnection();
+      
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final token = authProvider.token;
+      
+      if (token != null) {
+        debugPrint('🔍 Testing with token: ${token.substring(0, 10)}...');
+        
+        try {
+          final walletData = await _apiService.getWallet(token);
+          debugPrint('✅ Wallet endpoint works: $walletData');
+        } catch (e) {
+          debugPrint('❌ Wallet endpoint failed: $e');
+        }
+        
+        try {
+          await _apiService.topupRequest(token, amount: 10000, method: 'test');
+          debugPrint('✅ Topup endpoint accessible');
+        } catch (e) {
+          debugPrint('❌ Topup endpoint failed: $e');
+          
+          if (mounted) {
+            showDialog(
+              context: context,
+              builder: (context) => AlertDialog(
+                backgroundColor: const Color(0xFF2A2A2A),
+                title: const Text(
+                  'Connection Test Result',
+                  style: TextStyle(color: Colors.white),
+                ),
+                content: Text(
+                  'Topup Error: $e',
+                  style: const TextStyle(color: Colors.white),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('OK'),
+                  ),
+                ],
+              ),
+            );
+          }
+        }
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
   void _setQuickAmount(int amount) {
     _amountController.text = amount.toString();
+  }
+
+  void _showServerInfo() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF2A2A2A),
+        title: const Text(
+          'Server Information',
+          style: TextStyle(color: Colors.white),
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildInfoRow('Primary URL', 'https://ecocycle.my.id/api'),
+              _buildInfoRow('Fallback URL', 'http://ecocycle.my.id/api'),
+              _buildInfoRow('Local URL', 'http://192.168.1.100:8000/api'),
+              const SizedBox(height: 16),
+              Text(
+                'Expected Endpoints:',
+                style: TextStyle(
+                  color: Colors.blue[300],
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                '• POST /api/topup-request\n'
+                '• POST /api/topup\n'
+                '• POST /api/wallet/topup\n'
+                '• GET /api/wallet\n'
+                '• POST /api/login',
+                style: TextStyle(color: Colors.white70),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 80,
+            child: Text(
+              '$label:',
+              style: TextStyle(
+                color: Colors.grey[400],
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(
+                color: Colors.white,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDebugSection() {
+    return Container(
+      margin: const EdgeInsets.only(top: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF2A2A2A),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.orange[800]!),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.bug_report,
+                color: Colors.orange[400],
+                size: 20,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Debug Tools',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.orange[300],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: _debugApiConnection,
+                  icon: const Icon(Icons.network_check, size: 16),
+                  label: const Text('Test API'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.orange[700],
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: _showServerInfo,
+                  icon: const Icon(Icons.info, size: 16),
+                  label: const Text('Server Info'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue[700],
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -434,6 +712,9 @@ class _IsiSaldoScreenState extends State<IsiSaldoScreen> with TickerProviderStat
                 ],
               ),
             ),
+            
+            // Debug section (optional, uncomment if needed)
+            // _buildDebugSection(),
           ],
         ),
       ),
