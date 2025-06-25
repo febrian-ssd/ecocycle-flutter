@@ -1,4 +1,4 @@
-// lib/screens/history_page.dart - FIXED (Remove unused field)
+// lib/screens/history_page.dart - FIXED VERSION
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:ecocycle_app/providers/auth_provider.dart';
@@ -88,9 +88,10 @@ class _HistoryPageState extends State<HistoryPage> with TickerProviderStateMixin
 
       if (mounted) {
         setState(() {
-          _scanHistory = List<Map<String, dynamic>>.from(scanHistoryData['data'] ?? []);
+          // FIXED: Ensure proper data extraction
+          _scanHistory = _extractListFromResponse(scanHistoryData);
           _scanStats = scanStatsData['data'] ?? {};
-          _transactionHistory = List<Map<String, dynamic>>.from(transactionHistoryData['data'] ?? []);
+          _transactionHistory = _extractListFromResponse(transactionHistoryData);
           _isLoading = false;
         });
         
@@ -105,14 +106,25 @@ class _HistoryPageState extends State<HistoryPage> with TickerProviderStateMixin
     }
   }
 
-  // FALLBACK METHODS
+  // FIXED: Helper method to extract list from API response
+  List<Map<String, dynamic>> _extractListFromResponse(Map<String, dynamic> response) {
+    final data = response['data'] ?? response['history'] ?? response['transactions'] ?? [];
+    if (data is List) {
+      return data.cast<Map<String, dynamic>>();
+    }
+    return <Map<String, dynamic>>[];
+  }
+
+  // FIXED: FALLBACK METHODS
   Future<Map<String, dynamic>> _getMockScanHistory(String token) async {
     debugPrint('🔄 Using fallback scan history data');
     
     try {
       // Use general history and filter for scan-related items
-      final history = await _apiService.getHistory(token);
-      final scanHistory = history.where((item) => 
+      final historyList = await _apiService.getHistory(token);
+      
+      // FIXED: Ensure we're working with a List and filter properly
+      final scanHistory = historyList.where((item) => 
         item['type'] == 'scan' || 
         item['activity_type'] == 'scan' ||
         item.containsKey('qr_code') ||
@@ -135,12 +147,13 @@ class _HistoryPageState extends State<HistoryPage> with TickerProviderStateMixin
     
     try {
       // Calculate stats from general history
-      final history = await _apiService.getHistory(token);
+      final historyList = await _apiService.getHistory(token);
       int totalScans = 0;
       int totalCoinsEarned = 0;
       double totalWasteWeight = 0.0;
       
-      for (var item in history) {
+      // FIXED: Iterate over List properly
+      for (var item in historyList) {
         if (item['type'] == 'scan' || 
             item['activity_type'] == 'scan' ||
             item.containsKey('waste_type')) {
@@ -175,6 +188,8 @@ class _HistoryPageState extends State<HistoryPage> with TickerProviderStateMixin
     try {
       // Use getTransactions method and format the response
       final transactions = await _apiService.getTransactions(token);
+      
+      // FIXED: Map transactions properly
       final transactionData = transactions.map((t) => {
         'id': t.id,
         'type': t.type,
@@ -197,6 +212,7 @@ class _HistoryPageState extends State<HistoryPage> with TickerProviderStateMixin
   }
 
   void _showSnackBar(String message, {bool isError = false}) {
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
@@ -206,6 +222,7 @@ class _HistoryPageState extends State<HistoryPage> with TickerProviderStateMixin
         backgroundColor: isError ? Colors.red[700] : Colors.green[700],
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        duration: Duration(seconds: isError ? 5 : 3),
       ),
     );
   }
@@ -237,37 +254,40 @@ class _HistoryPageState extends State<HistoryPage> with TickerProviderStateMixin
           end: Alignment.centerRight,
         ),
       ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.2),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Icon(
-              Icons.history,
-              color: Colors.white,
-              size: 28,
-            ),
-          ),
-          const SizedBox(width: 16),
-          const Expanded(
-            child: Text(
-              'Riwayat Aktivitas',
-              style: TextStyle(
+      child: SafeArea(
+        bottom: false,
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(
+                Icons.history,
                 color: Colors.white,
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
+                size: 28,
               ),
             ),
-          ),
-          IconButton(
-            onPressed: _loadData,
-            icon: const Icon(Icons.refresh, color: Colors.white),
-            tooltip: 'Refresh',
-          ),
-        ],
+            const SizedBox(width: 16),
+            const Expanded(
+              child: Text(
+                'Riwayat Aktivitas',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            IconButton(
+              onPressed: _loadData,
+              icon: const Icon(Icons.refresh, color: Colors.white),
+              tooltip: 'Refresh',
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -1,14 +1,11 @@
-// lib/screens/konfirmasi_scan_screen.dart - FIXED (Remove unused imports and elements)
-import 'dart:convert'; // For json
+import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart'; // For Provider
-import 'package:ecocycle_app/providers/auth_provider.dart'; // For AuthProvider
-import 'package:ecocycle_app/services/api_service.dart'; // For ApiService
-import 'package:ecocycle_app/screens/transaksi_berhasil_screen.dart'; // For TransaksiBerhasilScreen
-// FIXED: Removed unused import 'package:ecocycle_app/utils/conversion_utils.dart'
+import 'package:provider/provider.dart';
+import 'package:ecocycle_app/providers/auth_provider.dart';
+import 'package:ecocycle_app/services/api_service.dart';
+import 'package:ecocycle_app/screens/transaksi_berhasil_screen.dart';
 
 class KonfirmasiScanScreen extends StatefulWidget {
-  // Sekarang kita menerima string JSON
   final String qrCodeJsonData;
   const KonfirmasiScanScreen({super.key, required this.qrCodeJsonData});
 
@@ -20,7 +17,6 @@ class _KonfirmasiScanScreenState extends State<KonfirmasiScanScreen> {
   final ApiService _apiService = ApiService();
   bool _isLoading = false;
 
-  // State untuk menyimpan data yang sudah di-parse dari JSON
   String _dropboxCode = '...';
   String _dropboxLocation = '...';
   String _wasteType = '...';
@@ -40,12 +36,10 @@ class _KonfirmasiScanScreenState extends State<KonfirmasiScanScreen> {
         _dropboxCode = data['id'] ?? 'N/A';
         _dropboxLocation = data['location'] ?? 'N/A';
         _wasteType = data['waste_type'] ?? 'N/A';
-        _weight = double.parse(data['weight_g'].toString()); // Parse to double
-        // Logika 1 gram = 10 koin
+        _weight = double.parse(data['weight_g'].toString());
         _potentialCoins = (_weight * 10).floor();
       });
     } catch (e) {
-      // Jika data bukan JSON, tampilkan sebagai kode saja
       setState(() {
         _dropboxCode = widget.qrCodeJsonData;
         _dropboxLocation = 'Unknown';
@@ -62,11 +56,12 @@ class _KonfirmasiScanScreenState extends State<KonfirmasiScanScreen> {
       final token = Provider.of<AuthProvider>(context, listen: false).token;
       if (token == null) throw Exception('Not authenticated');
 
+      // FIXED: Correct method call with named parameters
       await _apiService.confirmScan(
         token,
         dropboxCode: _dropboxCode,
         wasteType: _wasteType,
-        weight: _weight, // Pass as double
+        weight: _weight,
       );
 
       if (mounted) {
@@ -118,18 +113,16 @@ class _KonfirmasiScanScreenState extends State<KonfirmasiScanScreen> {
                     )
                   ),
                   const SizedBox(height: 20),
-                  // Semua field sekarang tidak bisa diedit
                   _buildInfoRow('Dropbox Code', _dropboxCode),
                   _buildInfoRow('Dropbox Location', _dropboxLocation),
                   _buildInfoRow('Waste Type', _wasteType),
-                  _buildInfoRow('Weight', '${_weight.toStringAsFixed(1)} g'), // Better formatting
+                  _buildInfoRow('Weight', '${_weight.toStringAsFixed(1)} g'),
                 ],
               ),
             ),
             const SizedBox(height: 20),
-            // Tampilan koin yang akan didapat
             Text(
-              'Anda akan mendapatkan: $_potentialCoins koin', // Remove unnecessary braces
+              'Anda akan mendapatkan: $_potentialCoins koin',
               style: const TextStyle(
                 color: Colors.amber, 
                 fontSize: 16, 
@@ -169,8 +162,6 @@ class _KonfirmasiScanScreenState extends State<KonfirmasiScanScreen> {
       ),
     );
   }
-
-  // FIXED: Removed unused _buildInfoCard method
 
   Widget _buildInfoRow(String label, String value) {
     return Padding(

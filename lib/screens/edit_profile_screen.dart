@@ -1,4 +1,3 @@
-// lib/screens/edit_profile_screen.dart - Dark Theme
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:ecocycle_app/providers/auth_provider.dart';
@@ -20,9 +19,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> with TickerProvid
   bool _obscureConfirmPassword = true;
   
   late AnimationController _fadeController;
-  late AnimationController _slideController;
   late Animation<double> _fadeAnimation;
-  late Animation<Offset> _slideAnimation;
 
   @override
   void initState() {
@@ -39,25 +36,15 @@ class _EditProfileScreenState extends State<EditProfileScreen> with TickerProvid
       vsync: this,
     );
     
-    _slideController = AnimationController(
-      duration: const Duration(milliseconds: 800),
-      vsync: this,
-    );
-    
     _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0)
         .animate(CurvedAnimation(parent: _fadeController, curve: Curves.easeOut));
     
-    _slideAnimation = Tween<Offset>(begin: const Offset(0, 0.3), end: Offset.zero)
-        .animate(CurvedAnimation(parent: _slideController, curve: Curves.easeOutCubic));
-    
     _fadeController.forward();
-    _slideController.forward();
   }
 
   @override
   void dispose() {
     _fadeController.dispose();
-    _slideController.dispose();
     _nameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
@@ -66,7 +53,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> with TickerProvid
   }
 
   Future<void> _saveProfile() async {
-    // Validate password fields if password is being changed
     if (_passwordController.text.isNotEmpty) {
       if (_passwordController.text != _confirmPasswordController.text) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -104,10 +90,19 @@ class _EditProfileScreenState extends State<EditProfileScreen> with TickerProvid
     try {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       
-      await authProvider.updateProfile(
-        name: _nameController.text.trim(),
-        email: _emailController.text.trim(),
-      );
+      // FIXED: Correct updateProfile method call
+      final userData = <String, String>{
+        'name': _nameController.text.trim(),
+        'email': _emailController.text.trim(),
+      };
+      
+      // Add password fields if they're filled
+      if (_passwordController.text.isNotEmpty) {
+        userData['password'] = _passwordController.text;
+        userData['password_confirmation'] = _confirmPasswordController.text;
+      }
+      
+      await authProvider.updateProfile(userData);
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -163,229 +158,133 @@ class _EditProfileScreenState extends State<EditProfileScreen> with TickerProvid
       ),
       body: FadeTransition(
         opacity: _fadeAnimation,
-        child: SlideTransition(
-          position: _slideAnimation,
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24.0),
-            child: Column(
-              children: [
-                // Profile Avatar Section
-                Container(
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF2A2A2A),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: const Color(0xFF4CAF50).withValues(alpha: 0.3)),
-                  ),
-                  child: Column(
-                    children: [
-                      Stack(
-                        children: [
-                          CircleAvatar(
-                            radius: 50,
-                            backgroundColor: const Color(0xFF4CAF50),
-                            child: Text(
-                              _nameController.text.isNotEmpty 
-                                  ? _nameController.text[0].toUpperCase() 
-                                  : 'U',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 32,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                          Positioned(
-                            bottom: 0,
-                            right: 0,
-                            child: Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF4CAF50),
-                                borderRadius: BorderRadius.circular(20),
-                                border: Border.all(color: const Color(0xFF121212), width: 2),
-                              ),
-                              child: const Icon(
-                                Icons.camera_alt,
-                                color: Colors.white,
-                                size: 16,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      const Text(
-                        'Ubah Foto Profil',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Fitur dalam pengembangan',
-                        style: TextStyle(
-                          color: Colors.grey[400],
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            children: [
+              // Profile Avatar Section
+              Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF2A2A2A),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: const Color(0xFF4CAF50).withValues(alpha: 0.3)),
                 ),
-                
-                const SizedBox(height: 24),
-                
-                // Form Fields
-                _buildTextField(
-                  label: 'Nama Lengkap', 
-                  controller: _nameController, 
-                  icon: Icons.person,
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'Nama tidak boleh kosong';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 20),
-                _buildTextField(
-                  label: 'Email', 
-                  controller: _emailController, 
-                  icon: Icons.email,
-                  keyboardType: TextInputType.emailAddress,
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'Email tidak boleh kosong';
-                    }
-                    if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value)) {
-                      return 'Format email tidak valid';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 20),
-                _buildTextField(
-                  label: 'Password Baru (opsional)', 
-                  controller: _passwordController, 
-                  icon: Icons.lock, 
-                  isPassword: true,
-                  obscureText: _obscurePassword,
-                  suffixIcon: IconButton(
-                    icon: Icon(
-                      _obscurePassword ? Icons.visibility_off : Icons.visibility,
-                      color: Colors.grey,
-                    ),
-                    onPressed: () {
-                      setState(() {
-                        _obscurePassword = !_obscurePassword;
-                      });
-                    },
-                  ),
-                ),
-                const SizedBox(height: 20),
-                _buildTextField(
-                  label: 'Konfirmasi Password Baru', 
-                  controller: _confirmPasswordController, 
-                  icon: Icons.lock_outline, 
-                  isPassword: true,
-                  obscureText: _obscureConfirmPassword,
-                  suffixIcon: IconButton(
-                    icon: Icon(
-                      _obscureConfirmPassword ? Icons.visibility_off : Icons.visibility,
-                      color: Colors.grey,
-                    ),
-                    onPressed: () {
-                      setState(() {
-                        _obscureConfirmPassword = !_obscureConfirmPassword;
-                      });
-                    },
-                  ),
-                ),
-                const SizedBox(height: 40),
-                
-                // Save Button
-                SizedBox(
-                  width: double.infinity,
-                  height: 56,
-                  child: ElevatedButton(
-                    onPressed: _isLoading ? null : _saveProfile,
-                    style: ElevatedButton.styleFrom(
+                child: Column(
+                  children: [
+                    CircleAvatar(
+                      radius: 50,
                       backgroundColor: const Color(0xFF4CAF50),
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                      disabledBackgroundColor: Colors.grey[700],
-                    ),
-                    child: _isLoading
-                        ? const SizedBox(
-                            height: 24,
-                            width: 24,
-                            child: CircularProgressIndicator(
-                              color: Colors.white,
-                              strokeWidth: 3,
-                            ),
-                          )
-                        : const Text(
-                            'Simpan Perubahan', 
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                  ),
-                ),
-                
-                const SizedBox(height: 16),
-                
-                // Security Info
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF2A2A2A),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.blue[800]!),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.security,
-                            color: Colors.blue[400],
-                            size: 20,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            'Keamanan Akun',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.blue[300],
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        '• Password minimal 8 karakter\n'
-                        '• Gunakan kombinasi huruf, angka, dan simbol\n'
-                        '• Jangan gunakan password yang sama dengan akun lain\n'
-                        '• Kosongkan password jika tidak ingin mengubah',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.blue[200],
-                          height: 1.5,
-                          fontWeight: FontWeight.w600,
+                      child: Text(
+                        _nameController.text.isNotEmpty 
+                            ? _nameController.text[0].toUpperCase() 
+                            : 'U',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 32,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
-                    ],
-                  ),
+                    ),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Edit Profil',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+              
+              const SizedBox(height: 24),
+              
+              // Form Fields
+              _buildTextField(
+                label: 'Nama Lengkap', 
+                controller: _nameController, 
+                icon: Icons.person,
+              ),
+              const SizedBox(height: 20),
+              _buildTextField(
+                label: 'Email', 
+                controller: _emailController, 
+                icon: Icons.email,
+                keyboardType: TextInputType.emailAddress,
+              ),
+              const SizedBox(height: 20),
+              _buildTextField(
+                label: 'Password Baru (opsional)', 
+                controller: _passwordController, 
+                icon: Icons.lock, 
+                isPassword: true,
+                obscureText: _obscurePassword,
+                suffixIcon: IconButton(
+                  icon: Icon(
+                    _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                    color: Colors.grey,
+                  ),
+                  onPressed: () {
+                    setState(() {
+                      _obscurePassword = !_obscurePassword;
+                    });
+                  },
+                ),
+              ),
+              const SizedBox(height: 20),
+              _buildTextField(
+                label: 'Konfirmasi Password Baru', 
+                controller: _confirmPasswordController, 
+                icon: Icons.lock_outline, 
+                isPassword: true,
+                obscureText: _obscureConfirmPassword,
+                suffixIcon: IconButton(
+                  icon: Icon(
+                    _obscureConfirmPassword ? Icons.visibility_off : Icons.visibility,
+                    color: Colors.grey,
+                  ),
+                  onPressed: () {
+                    setState(() {
+                      _obscureConfirmPassword = !_obscureConfirmPassword;
+                    });
+                  },
+                ),
+              ),
+              const SizedBox(height: 40),
+              
+              // Save Button
+              SizedBox(
+                width: double.infinity,
+                height: 56,
+                child: ElevatedButton(
+                  onPressed: _isLoading ? null : _saveProfile,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF4CAF50),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    disabledBackgroundColor: Colors.grey[700],
+                  ),
+                  child: _isLoading
+                      ? const SizedBox(
+                          height: 24,
+                          width: 24,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 3,
+                          ),
+                        )
+                      : const Text(
+                          'Simpan Perubahan', 
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -400,7 +299,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> with TickerProvid
     bool obscureText = false,
     Widget? suffixIcon,
     TextInputType keyboardType = TextInputType.text,
-    String? Function(String?)? validator,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -441,7 +339,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> with TickerProvid
             filled: true,
             fillColor: const Color(0xFF2A2A2A),
           ),
-          validator: validator,
         ),
       ],
     );

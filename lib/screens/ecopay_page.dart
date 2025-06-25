@@ -1,4 +1,4 @@
-// lib/screens/ecopay_page.dart - Dark Elegant Theme
+// lib/screens/ecopay_page.dart - FIXED VERSION
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:ecocycle_app/providers/auth_provider.dart';
@@ -23,7 +23,7 @@ class _EcoPayPageState extends State<EcoPayPage>
   bool _isLoading = true;
   double _balanceRp = 0.0;
   int _balanceCoins = 0;
-  List<Transaction> _transactions = [];
+  List<Transaction> _transactions = []; // FIXED: Proper type declaration
   
   late AnimationController _fadeController;
   late AnimationController _slideController;
@@ -34,31 +34,31 @@ class _EcoPayPageState extends State<EcoPayPage>
   Duration get refreshInterval => const Duration(seconds: 15);
 
   @override
-Future<void> onAutoRefresh() async {
-  if (!mounted) return;
-  
-  try {
-    debugPrint('🔄 EcoPay auto-refresh triggered');
-    await _loadWalletData();
-    await refreshAuthData();
-  } catch (e) {
-    debugPrint('❌ EcoPay auto-refresh failed: $e');
+  Future<void> onAutoRefresh() async {
+    if (!mounted) return;
+    
+    try {
+      debugPrint('🔄 EcoPay auto-refresh triggered');
+      await _loadWalletData(showLoading: false);
+      await refreshAuthData();
+    } catch (e) {
+      debugPrint('❌ EcoPay auto-refresh failed: $e');
+    }
   }
-}
 
   @override
-void initState() {
-  super.initState();
-  _initAnimations();
-  _loadWalletData();
-  
-  // Start auto-refresh after initial load
-  Future.delayed(const Duration(seconds: 5), () {
-    if (mounted) {
-      startAutoRefresh();
-    }
-  });
-}
+  void initState() {
+    super.initState();
+    _initAnimations();
+    _loadWalletData();
+    
+    // Start auto-refresh after initial load
+    Future.delayed(const Duration(seconds: 5), () {
+      if (mounted) {
+        startAutoRefresh();
+      }
+    });
+  }
 
   void _initAnimations() {
     _fadeController = AnimationController(
@@ -86,54 +86,56 @@ void initState() {
   }
 
   Future<void> _loadWalletData({bool showLoading = true}) async {
-  try {
-    final token = Provider.of<AuthProvider>(context, listen: false).token;
-    if (token != null) {
-      if (showLoading) {
-        setState(() => _isLoading = true);
-      }
-      
-      final walletData = await _apiService.getWallet(token);
-      final transactions = await _apiService.getTransactions(token);
-      
-      if (mounted) {
-        setState(() {
-          _balanceRp = ConversionUtils.toDouble(walletData['balance_rp']);
-          _balanceCoins = ConversionUtils.toInt(walletData['balance_coins']);
-          _transactions = transactions;
-          _isLoading = false;
-        });
-        
+    try {
+      final token = Provider.of<AuthProvider>(context, listen: false).token;
+      if (token != null) {
         if (showLoading) {
-          _fadeController.forward();
-          _slideController.forward();
+          setState(() => _isLoading = true);
+        }
+        
+        final walletData = await _apiService.getWallet(token);
+        // FIXED: Proper transaction data handling
+        final transactions = await _apiService.getTransactions(token);
+        
+        if (mounted) {
+          setState(() {
+            _balanceRp = ConversionUtils.toDouble(walletData['balance_rp']);
+            _balanceCoins = ConversionUtils.toInt(walletData['balance_coins']);
+            // FIXED: Assign List<Transaction> directly
+            _transactions = transactions;
+            _isLoading = false;
+          });
+          
+          if (showLoading) {
+            _fadeController.forward();
+            _slideController.forward();
+          }
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        if (showLoading) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Gagal memuat data wallet: ${e.toString()}',
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+              backgroundColor: Colors.red[700],
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+          );
         }
       }
     }
-  } catch (e) {
-    if (mounted) {
-      setState(() => _isLoading = false);
-      if (showLoading) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Gagal memuat data wallet: ${e.toString()}',
-              style: const TextStyle(fontWeight: FontWeight.w600),
-            ),
-            backgroundColor: Colors.red[700],
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          ),
-        );
-      }
-    }
   }
-}
 
   Future<void> _refreshData() async {
-  await _loadWalletData(showLoading: false);
-  await refreshAuthData();
-}
+    await _loadWalletData(showLoading: false);
+    await refreshAuthData();
+  }
 
   @override
   Widget build(BuildContext context) {

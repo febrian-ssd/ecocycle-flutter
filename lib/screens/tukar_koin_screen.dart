@@ -1,4 +1,3 @@
-// lib/screens/tukar_koin_screen.dart - FIXED PARAMETER ISSUES
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:ecocycle_app/providers/auth_provider.dart';
@@ -23,8 +22,8 @@ class _TukarKoinScreenState extends State<TukarKoinScreen> with TickerProviderSt
   late AnimationController _fadeController;
   late Animation<double> _fadeAnimation;
   
-  // Exchange rate: 1000 coins = Rp 10,000 (1 coin = Rp 10)
-  static const int coinsPerRupiah = 100; // 100 coins = Rp 1000
+  // Exchange rate: 1 coin = Rp 10
+  // FIXED: Removed unused coinsPerRupiah field
   static const int minimumExchange = 100; // Minimum 100 coins
   
   @override
@@ -89,7 +88,7 @@ class _TukarKoinScreenState extends State<TukarKoinScreen> with TickerProviderSt
       debugPrint('🔄 Starting coin exchange process...');
       
       try {
-        // FIXED: Use correct parameter name 'coinAmount' instead of 'coins'
+        // FIXED: Use correct parameter name 'coinAmount'
         await _apiService.exchangeCoins(
           token,
           coinAmount: coinAmount,
@@ -526,53 +525,6 @@ class _TukarKoinScreenState extends State<TukarKoinScreen> with TickerProviderSt
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            
-            // Info Card
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: const Color(0xFF2A2A2A),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.orange[800]!),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.info_outline,
-                        color: Colors.orange[400],
-                        size: 20,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Informasi Penukaran',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.orange[300],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    '• EcoCoins ditukar langsung ke saldo Rupiah\n'
-                    '• Proses penukaran berlangsung real-time\n'
-                    '• Saldo akan ditambahkan ke akun EcoPay Anda\n'
-                    '• Dapatkan EcoCoins dari aktivitas daur ulang',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.orange[200],
-                      height: 1.5,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
               ),
             ),
           ],

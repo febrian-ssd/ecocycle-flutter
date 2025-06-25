@@ -1,4 +1,4 @@
-// lib/screens/profile_page.dart - Elegant Dark Theme with Real Data
+// lib/screens/profile_page.dart - COMPLETE FIXED VERSION
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:ecocycle_app/providers/auth_provider.dart';
@@ -72,13 +72,15 @@ class _ProfilePageState extends State<ProfilePage> with TickerProviderStateMixin
         final walletData = await _apiService.getWallet(token);
         
         // Load history data for statistics
-        final historyData = await _apiService.getHistory(token);
+        // FIXED: Get List<Map<String, dynamic>> directly from API
+        final historyList = await _apiService.getHistory(token);
         
         // Calculate statistics from history
-        int totalScans = historyData.length;
+        int totalScans = historyList.length;
         double totalWaste = 0.0;
         
-        for (var scan in historyData) {
+        // FIXED: Iterate over List properly
+        for (var scan in historyList) {
           double weight = ConversionUtils.toDouble(scan['weight'] ?? scan['weight_g'] ?? 0);
           totalWaste += weight;
         }

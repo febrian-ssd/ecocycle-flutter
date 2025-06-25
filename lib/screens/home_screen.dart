@@ -1,4 +1,3 @@
-// lib/screens/home_screen.dart - IMPROVED VERSION WITH GRACEFUL ERROR HANDLING
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:ecocycle_app/providers/auth_provider.dart';
@@ -6,6 +5,11 @@ import 'package:ecocycle_app/widgets/wallet_error_widget.dart';
 import 'package:ecocycle_app/screens/isi_saldo_screen.dart';
 import 'package:ecocycle_app/screens/transfer_screen.dart';
 import 'package:ecocycle_app/screens/tukar_koin_screen.dart';
+import 'package:ecocycle_app/screens/ecopay_page.dart';
+import 'package:ecocycle_app/screens/history_page.dart';
+import 'package:ecocycle_app/screens/map_page.dart';
+import 'package:ecocycle_app/screens/profile_page.dart';
+import 'package:ecocycle_app/screens/scan_screen.dart';
 import 'package:ecocycle_app/utils/conversion_utils.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -16,14 +20,16 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
+  int _selectedIndex = 0;
+  late PageController _pageController;
+  
   late AnimationController _fadeController;
-  late AnimationController _slideController;
   late Animation<double> _fadeAnimation;
-  late Animation<Offset> _slideAnimation;
 
   @override
   void initState() {
     super.initState();
+    _pageController = PageController();
     _initAnimations();
     _refreshData();
   }
@@ -34,25 +40,16 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       vsync: this,
     );
     
-    _slideController = AnimationController(
-      duration: const Duration(milliseconds: 800),
-      vsync: this,
-    );
-    
     _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0)
         .animate(CurvedAnimation(parent: _fadeController, curve: Curves.easeOut));
     
-    _slideAnimation = Tween<Offset>(begin: const Offset(0, 0.3), end: Offset.zero)
-        .animate(CurvedAnimation(parent: _slideController, curve: Curves.easeOutCubic));
-    
     _fadeController.forward();
-    _slideController.forward();
   }
 
   @override
   void dispose() {
     _fadeController.dispose();
-    _slideController.dispose();
+    _pageController.dispose();
     super.dispose();
   }
 
@@ -61,36 +58,63 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     await authProvider.refreshAllData();
   }
 
+  void _onItemTapped(int index) {
+    setState(() {
+      _selectedIndex = index;
+    });
+    _pageController.animateToPage(
+      index,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF121212),
-      body: RefreshIndicator(
-        onRefresh: _refreshData,
-        color: const Color(0xFF4CAF50),
-        backgroundColor: const Color(0xFF2A2A2A),
-        child: FadeTransition(
-          opacity: _fadeAnimation,
-          child: SlideTransition(
-            position: _slideAnimation,
-            child: SingleChildScrollView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              child: Column(
-                children: [
-                  _buildHeader(),
-                  
-                  // Wallet error banner (compact version)
-                  const WalletErrorBanner(),
-                  
-                  _buildWalletCard(),
-                  _buildQuickActions(),
-                  _buildFeatureGrid(),
-                  _buildRecentActivity(),
-                  const SizedBox(height: 100), // Bottom padding for navigation
-                ],
-              ),
-            ),
-          ),
+      body: FadeTransition(
+        opacity: _fadeAnimation,
+        child: PageView(
+          controller: _pageController,
+          onPageChanged: (index) {
+            setState(() {
+              _selectedIndex = index;
+            });
+          },
+          children: [
+            _buildHomePage(),
+            const EcoPayPage(),
+            const ScanScreen(),
+            const HistoryPage(),
+            const ProfilePage(),
+          ],
+        ),
+      ),
+      bottomNavigationBar: _buildBottomNavigationBar(),
+    );
+  }
+
+  Widget _buildHomePage() {
+    return RefreshIndicator(
+      onRefresh: _refreshData,
+      color: const Color(0xFF4CAF50),
+      backgroundColor: const Color(0xFF2A2A2A),
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        child: Column(
+          children: [
+            _buildHeader(),
+            
+            // Wallet error banner (compact version)
+            const WalletErrorBanner(),
+            
+            _buildWalletCard(),
+            _buildQuickActions(),
+            _buildFeatureGrid(),
+            _buildRecentActivity(),
+            const SizedBox(height: 100), // Bottom padding for navigation
+          ],
         ),
       ),
     );
@@ -343,14 +367,14 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 title: 'Setor Sampah',
                 subtitle: 'Dapatkan EcoCoins',
                 color: Colors.green,
-                onTap: () => _navigateToWasteDeposit(context),
+                onTap: () => _navigateToScan(context),
               ),
               _buildFeatureCard(
                 icon: Icons.location_on,
                 title: 'Lokasi Dropbox',
                 subtitle: 'Cari terdekat',
                 color: Colors.blue,
-                onTap: () => _navigateToDropboxMap(context),
+                onTap: () => _navigateToMap(context),
               ),
               _buildFeatureCard(
                 icon: Icons.history,
@@ -580,6 +604,58 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
+  Widget _buildBottomNavigationBar() {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E1E1E),
+        border: Border(
+          top: BorderSide(
+            color: Colors.grey[800]!,
+            width: 0.5,
+          ),
+        ),
+      ),
+      child: BottomNavigationBar(
+        currentIndex: _selectedIndex,
+        onTap: _onItemTapped,
+        type: BottomNavigationBarType.fixed,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        selectedItemColor: const Color(0xFF4CAF50),
+        unselectedItemColor: Colors.grey[600],
+        selectedFontSize: 12,
+        unselectedFontSize: 11,
+        items: const [
+          BottomNavigationBarItem(
+            icon: Icon(Icons.home_outlined),
+            activeIcon: Icon(Icons.home),
+            label: 'Beranda',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.account_balance_wallet_outlined),
+            activeIcon: Icon(Icons.account_balance_wallet),
+            label: 'EcoPay',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.qr_code_scanner_outlined),
+            activeIcon: Icon(Icons.qr_code_scanner),
+            label: 'Scan',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.history_outlined),
+            activeIcon: Icon(Icons.history),
+            label: 'Riwayat',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.person_outline),
+            activeIcon: Icon(Icons.person),
+            label: 'Profil',
+          ),
+        ],
+      ),
+    );
+  }
+
   // Navigation methods
   void _navigateToTopUp(BuildContext context) async {
     final result = await Navigator.push(
@@ -614,31 +690,21 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     }
   }
 
-  void _navigateToWasteDeposit(BuildContext context) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Fitur Setor Sampah akan segera tersedia!'),
-        backgroundColor: Color(0xFF4CAF50),
-      ),
-    );
+  void _navigateToScan(BuildContext context) {
+    setState(() => _selectedIndex = 2);
+    _pageController.animateToPage(2, duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
   }
 
-  void _navigateToDropboxMap(BuildContext context) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Fitur Peta Dropbox akan segera tersedia!'),
-        backgroundColor: Color(0xFF4CAF50),
-      ),
+  void _navigateToMap(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const MapPage()),
     );
   }
 
   void _navigateToHistory(BuildContext context) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Fitur Riwayat akan segera tersedia!'),
-        backgroundColor: Color(0xFF4CAF50),
-      ),
-    );
+    setState(() => _selectedIndex = 3);
+    _pageController.animateToPage(3, duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
   }
 
   void _navigateToChallenge(BuildContext context) {

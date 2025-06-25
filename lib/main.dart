@@ -1,9 +1,7 @@
-// lib/main.dart - UPDATED VERSION with proper auth initialization
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:ecocycle_app/providers/auth_provider.dart';
 import 'package:ecocycle_app/screens/auth_wrapper.dart';
-import 'package:ecocycle_app/widgets/wallet_error_widget.dart';
 
 void main() {
   runApp(const MyApp());

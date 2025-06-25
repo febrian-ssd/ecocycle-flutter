@@ -1,25 +1,28 @@
-// lib/providers/auth_provider.dart - COMPLETE VERSION WITH ALL MISSING METHODS
+// lib/providers/auth_provider.dart - Enhanced with Role Management
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:ecocycle_app/services/api_service.dart';
+import 'package:ecocycle_app/models/user.dart';
 import 'package:ecocycle_app/utils/conversion_utils.dart';
 
 class AuthProvider extends ChangeNotifier {
   final ApiService _apiService = ApiService();
   
   // State variables
-  Map<String, dynamic>? _user;
+  User? _user;
   Map<String, dynamic>? _wallet;
   String? _token;
+  List<String> _abilities = [];
   bool _isLoading = false;
   bool _isInitialized = false;
   String? _errorMessage;
   bool _hasWalletError = false;
   
   // Getters
-  Map<String, dynamic>? get user => _user;
+  User? get user => _user;
   Map<String, dynamic>? get wallet => _wallet;
   String? get token => _token;
+  List<String> get abilities => _abilities;
   bool get isLoading => _isLoading;
   bool get isInitialized => _isInitialized;
   bool get isLoggedIn => _token != null && _user != null;
@@ -27,11 +30,16 @@ class AuthProvider extends ChangeNotifier {
   String? get errorMessage => _errorMessage;
   bool get hasWalletError => _hasWalletError;
   
+  // Role-based getters
+  bool get isAdmin => _user?.isAdmin ?? false;
+  bool get isUser => _user?.isUser ?? false;
+  String get userRole => _user?.role ?? 'unknown';
+  String get userRoleDisplay => _user?.roleDisplay ?? 'Unknown';
+  
   // Helper getters for wallet data with fallback values
   double get balanceRp {
     if (_wallet == null || _hasWalletError) return 0.0;
     
-    // Try different possible keys for balance
     final data = _wallet!['data'] ?? _wallet!;
     return ConversionUtils.toDouble(
       data['balance_rp'] ?? 
@@ -44,7 +52,6 @@ class AuthProvider extends ChangeNotifier {
   int get balanceKoin {
     if (_wallet == null || _hasWalletError) return 0;
     
-    // Try different possible keys for coins
     final data = _wallet!['data'] ?? _wallet!;
     return ConversionUtils.toInt(
       data['balance_koin'] ?? 
@@ -52,6 +59,19 @@ class AuthProvider extends ChangeNotifier {
       data['koin'] ?? 
       0
     );
+  }
+
+  // Permission checking
+  bool hasPermission(String permission) {
+    return _abilities.contains(permission);
+  }
+
+  bool hasRole(String role) {
+    return _user?.role == role;
+  }
+
+  bool hasAnyRole(List<String> roles) {
+    return roles.contains(_user?.role);
   }
 
   AuthProvider() {
@@ -65,14 +85,27 @@ class AuthProvider extends ChangeNotifier {
       final prefs = await SharedPreferences.getInstance();
       final savedToken = prefs.getString('auth_token');
       final savedUserJson = prefs.getString('user_data');
+      final savedAbilitiesJson = prefs.getString('user_abilities');
       
       if (savedToken != null && savedUserJson != null) {
         debugPrint('🔍 Found saved auth data, attempting to restore session');
         _token = savedToken;
         
+        // Parse saved user data
         try {
-          // Try to verify token is still valid by getting user data
-          await _loadUserData();
+          final userMap = Map<String, dynamic>.from(
+            Map.from(Uri.splitQueryString(savedUserJson))
+          );
+          _user = User.fromJson(userMap);
+          
+          if (savedAbilitiesJson != null) {
+            _abilities = List<String>.from(
+              Uri.splitQueryString(savedAbilitiesJson).keys
+            );
+          }
+          
+          // Verify token is still valid
+          await _verifyToken();
           
           debugPrint('✅ Session restored successfully');
         } catch (e) {
@@ -92,33 +125,45 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  // PUBLIC METHOD: Initialize auth (called from main.dart and auth_wrapper.dart)
+  // PUBLIC METHOD: Initialize auth
   Future<void> initializeAuth() async {
     await _initializeAuth();
   }
 
   Future<void> login(String email, String password) async {
-    debugPrint('🔐 AuthProvider.login() START');
+    debugPrint('🔐 AuthProvider.login() START for role-based auth');
     _setLoading(true);
     _errorMessage = null;
     
     try {
       final response = await _apiService.login(email, password);
       
-      _token = response['token'] ?? response['access_token'];
+      if (!response['success']) {
+        throw Exception(response['message'] ?? 'Login failed');
+      }
+      
+      final data = response['data'];
+      _token = data['access_token'];
+      _abilities = List<String>.from(data['abilities'] ?? []);
+      
       if (_token == null) {
         throw Exception('Token tidak ditemukan dalam respons server');
       }
       
-      debugPrint('✅ Login successful, token received');
+      // Parse user data
+      final userData = data['user'];
+      _user = User.fromJson(userData);
       
-      // Load user data and wallet data
-      await _loadUserData();
+      debugPrint('✅ Login successful, role: ${_user?.role}');
+      debugPrint('✅ User abilities: $_abilities');
+      
+      // Load wallet data
+      await _loadWalletData();
       
       // Save to local storage
       await _saveToLocalStorage();
       
-      debugPrint('✅ Login process complete');
+      debugPrint('✅ Login process complete for ${_user?.roleDisplay}');
       
     } catch (e) {
       debugPrint('❌ Login failed: $e');
@@ -138,15 +183,26 @@ class AuthProvider extends ChangeNotifier {
     try {
       final response = await _apiService.register(userData);
       
-      _token = response['token'] ?? response['access_token'];
+      if (!response['success']) {
+        throw Exception(response['message'] ?? 'Registration failed');
+      }
+      
+      final data = response['data'];
+      _token = data['access_token'];
+      _abilities = List<String>.from(data['abilities'] ?? []);
+      
       if (_token == null) {
         throw Exception('Token tidak ditemukan dalam respons server');
       }
       
-      debugPrint('✅ Registration successful, token received');
+      // Parse user data
+      final userDataResponse = data['user'];
+      _user = User.fromJson(userDataResponse);
       
-      // Load user data and wallet data
-      await _loadUserData();
+      debugPrint('✅ Registration successful, role: ${_user?.role}');
+      
+      // Load wallet data
+      await _loadWalletData();
       
       // Save to local storage
       await _saveToLocalStorage();
@@ -182,7 +238,6 @@ class AuthProvider extends ChangeNotifier {
       
     } catch (e) {
       debugPrint('❌ Error during logout: $e');
-      // Still clear local data even if server logout fails
       await _clearLocalData();
     } finally {
       _setLoading(false);
@@ -190,7 +245,7 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  // Enhanced user data loading with better error handling
+  // Enhanced user data loading
   Future<void> _loadUserData() async {
     if (_token == null) {
       throw Exception('Token tidak tersedia');
@@ -199,19 +254,22 @@ class AuthProvider extends ChangeNotifier {
     debugPrint('👤 Loading user data...');
     
     try {
-      // Load user profile
       final userResponse = await _apiService.getUser(_token!);
-      _user = userResponse['user'] ?? userResponse['data'] ?? userResponse;
       
-      debugPrint('✅ User data loaded successfully');
+      if (!userResponse['success']) {
+        throw Exception(userResponse['message'] ?? 'Failed to load user data');
+      }
       
-      // Load wallet data with graceful error handling
+      final userData = userResponse['data']['user'];
+      _user = User.fromJson(userData);
+      
+      debugPrint('✅ User data loaded successfully, role: ${_user?.role}');
+      
       await _loadWalletData();
       
     } catch (e) {
       debugPrint('❌ Error loading user data: $e');
       
-      // If it's an auth error, clear everything
       if (e.toString().contains('401') || e.toString().contains('Unauthenticated')) {
         await _clearLocalData();
         throw Exception('Sesi Anda telah berakhir. Silakan login kembali.');
@@ -221,7 +279,7 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  // Enhanced wallet data loading with graceful fallback
+  // Enhanced wallet data loading
   Future<void> _loadWalletData() async {
     if (_token == null) return;
     
@@ -229,42 +287,58 @@ class AuthProvider extends ChangeNotifier {
     _hasWalletError = false;
     
     try {
-      final walletResponse = await _apiService.getWallet(_token!);
+      String endpoint = isAdmin ? '/admin/wallet-overview' : '/user/wallet';
+      final walletResponse = await _apiService.getWallet(_token!, endpoint: endpoint);
       
-      // Check if this is a fallback response due to missing endpoint
-      if (walletResponse['success'] == false && 
-          walletResponse['message']?.contains('unavailable') == true) {
+      if (walletResponse['success'] == false) {
         debugPrint('⚠️ Wallet service unavailable, using default values');
-        _wallet = {
-          'balance_rp': 0,
-          'balance_koin': 0,
-          'data': {
-            'balance_rp': 0,
-            'balance_koin': 0,
-          }
-        };
+        _setDefaultWalletValues();
         _hasWalletError = true;
       } else {
         _wallet = walletResponse;
-        debugPrint('✅ Wallet data loaded successfully');
+        debugPrint('✅ Wallet data loaded successfully for ${_user?.roleDisplay}');
       }
       
     } catch (e) {
       debugPrint('❌ Error loading wallet data: $e');
+      _setDefaultWalletValues();
+      _hasWalletError = true;
+    }
+  }
+
+  // Token verification
+  Future<void> _verifyToken() async {
+    if (_token == null) return;
+    
+    try {
+      final response = await _apiService.checkToken(_token!);
       
-      // Set default wallet values and mark as having error
-      _wallet = {
+      if (!response['success']) {
+        throw Exception('Token invalid');
+      }
+      
+      // Update abilities from token verification
+      final tokenData = response['data']['token'];
+      _abilities = List<String>.from(tokenData['abilities'] ?? []);
+      
+      debugPrint('✅ Token verified successfully');
+      
+    } catch (e) {
+      debugPrint('❌ Token verification failed: $e');
+      await _clearLocalData();
+      throw Exception('Token tidak valid');
+    }
+  }
+
+  void _setDefaultWalletValues() {
+    _wallet = {
+      'balance_rp': 0,
+      'balance_koin': 0,
+      'data': {
         'balance_rp': 0,
         'balance_koin': 0,
-        'data': {
-          'balance_rp': 0,
-          'balance_koin': 0,
-        }
-      };
-      _hasWalletError = true;
-      
-      debugPrint('⚠️ Using default wallet values due to error');
-    }
+      }
+    };
   }
 
   // Public method to refresh all data
@@ -283,7 +357,6 @@ class AuthProvider extends ChangeNotifier {
     } catch (e) {
       debugPrint('❌ Error refreshing data: $e');
       
-      // If it's an auth error, handle gracefully
       if (e.toString().contains('401') || e.toString().contains('Unauthenticated')) {
         _errorMessage = 'Sesi berakhir. Silakan login kembali.';
         await logout();
@@ -295,7 +368,7 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  // Public method to refresh only wallet data
+  // Public method to refresh wallet data
   Future<void> refreshWalletData() async {
     debugPrint('💰 Refreshing wallet data...');
     
@@ -315,7 +388,7 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  // UPDATE PROFILE METHOD (for edit_profile_screen.dart)
+  // UPDATE PROFILE METHOD
   Future<void> updateProfile(Map<String, String> userData) async {
     debugPrint('📝 Updating user profile...');
     _setLoading(true);
@@ -326,10 +399,9 @@ class AuthProvider extends ChangeNotifier {
         throw Exception('Token tidak tersedia');
       }
       
-      // Call API to update profile
-      await _apiService.updateProfile(_token!, userData);
+      String endpoint = isAdmin ? '/admin/profile' : '/user/profile';
+      await _apiService.updateProfile(_token!, userData, endpoint: endpoint);
       
-      // Reload user data to get updated info
       await _loadUserData();
       
       debugPrint('✅ Profile updated successfully');
@@ -343,17 +415,58 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  // DEBUG CURRENT STATE METHOD (for auth_wrapper.dart)
-  void debugCurrentState() {
-    debugPrint('🔍 AuthProvider state in AuthWrapper:');
-    debugPrint('   isLoggedIn: $isLoggedIn');
-    debugPrint('   isAuthenticated: $isAuthenticated');
-    debugPrint('   isLoading: $isLoading');
-    debugPrint('   isInitialized: $isInitialized');
-    debugPrint('   token: ${_token?.substring(0, 10) ?? 'null'}...');
-    debugPrint('   user: ${_user != null ? 'loaded' : 'null'}');
-    debugPrint('   wallet: ${_wallet != null ? 'loaded' : 'null'}');
-    debugPrint('   hasWalletError: $hasWalletError');
+  // Role-based navigation helper
+  String getDefaultRoute() {
+    if (isAdmin) {
+      return '/admin/dashboard';
+    } else if (isUser) {
+      return '/user/home';
+    }
+    return '/login';
+  }
+
+  // Check if user can access specific feature
+  bool canAccessFeature(String feature) {
+    switch (feature) {
+      case 'admin_panel':
+        return isAdmin;
+      case 'user_wallet':
+        return isUser || isAdmin;
+      case 'scan_qr':
+        return isUser;
+      case 'manage_users':
+        return isAdmin && hasPermission('user:manage');
+      case 'manage_dropboxes':
+        return isAdmin;
+      case 'approve_topups':
+        return isAdmin;
+      default:
+        return isAuthenticated;
+    }
+  }
+
+  // Get available features based on role
+  List<String> getAvailableFeatures() {
+    if (isAdmin) {
+      return [
+        'admin_panel',
+        'manage_users',
+        'manage_dropboxes',
+        'approve_topups',
+        'view_statistics',
+        'system_monitoring',
+      ];
+    } else if (isUser) {
+      return [
+        'user_wallet',
+        'scan_qr',
+        'transfer_money',
+        'exchange_coins',
+        'view_history',
+        'topup_request',
+      ];
+    }
+    return [];
   }
 
   Future<void> _saveToLocalStorage() async {
@@ -365,7 +478,11 @@ class AuthProvider extends ChangeNotifier {
       }
       
       if (_user != null) {
-        await prefs.setString('user_data', _user.toString());
+        await prefs.setString('user_data', _user!.toJson().toString());
+      }
+      
+      if (_abilities.isNotEmpty) {
+        await prefs.setString('user_abilities', _abilities.join(','));
       }
       
       debugPrint('✅ Data saved to local storage');
@@ -379,10 +496,12 @@ class AuthProvider extends ChangeNotifier {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove('auth_token');
       await prefs.remove('user_data');
+      await prefs.remove('user_abilities');
       
       _token = null;
       _user = null;
       _wallet = null;
+      _abilities = [];
       _errorMessage = null;
       _hasWalletError = false;
       
@@ -397,13 +516,11 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Clear error message
   void clearError() {
     _errorMessage = null;
     notifyListeners();
   }
 
-  // Get wallet status message for UI
   String getWalletStatusMessage() {
     if (_hasWalletError) {
       return 'Layanan wallet sedang dalam pengembangan. Beberapa fitur mungkin tidak tersedia.';
@@ -411,6 +528,18 @@ class AuthProvider extends ChangeNotifier {
     return '';
   }
 
-  // Check if wallet features are available
   bool get isWalletAvailable => !_hasWalletError;
+
+  void debugCurrentState() {
+    debugPrint('🔍 AuthProvider state:');
+    debugPrint('   isLoggedIn: $isLoggedIn');
+    debugPrint('   isAuthenticated: $isAuthenticated');
+    debugPrint('   isAdmin: $isAdmin');
+    debugPrint('   isUser: $isUser');
+    debugPrint('   userRole: $userRole');
+    debugPrint('   abilities: $_abilities');
+    debugPrint('   isLoading: $isLoading');
+    debugPrint('   isInitialized: $isInitialized');
+    debugPrint('   hasWalletError: $hasWalletError');
+  }
 }

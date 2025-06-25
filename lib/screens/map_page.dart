@@ -1,4 +1,3 @@
-// lib/screens/map_page.dart - COMPLETE VERSION with fixed map style
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -84,10 +83,12 @@ class MapPageState extends State<MapPage> with TickerProviderStateMixin {
       }
 
       debugPrint('🔄 Fetching dropboxes...');
+      // FIXED: Get List<Map<String, dynamic>> directly from API
       final dropboxesData = await _apiService.getDropboxes(token);
       debugPrint('✅ Received ${dropboxesData.length} dropboxes');
       
       final dropboxes = <Dropbox>[];
+      // FIXED: Iterate over List directly
       for (var data in dropboxesData) {
         try {
           final dropbox = Dropbox.fromJson(data);
@@ -362,7 +363,7 @@ class MapPageState extends State<MapPage> with TickerProviderStateMixin {
       child: GoogleMap(
         mapType: MapType.normal,
         initialCameraPosition: _kMedan,
-        style: _getMapStyle(), // FIXED: Better map style
+        style: _getMapStyle(),
         onMapCreated: (GoogleMapController controller) async {
           try {
             if (!_controller.isCompleted) {
@@ -396,27 +397,6 @@ class MapPageState extends State<MapPage> with TickerProviderStateMixin {
   String? _getMapStyle() {
     // Return null to use default Google Maps style with all roads visible
     return null;
-    
-    /* Alternative: If you want custom styling, use this format:
-    return '''[
-      {
-        "featureType": "road",
-        "elementType": "geometry",
-        "stylers": [{"color": "#ffffff", "weight": 1}]
-      },
-      {
-        "featureType": "road.highway",
-        "elementType": "geometry", 
-        "stylers": [{"color": "#ffa726", "weight": 3}]
-      },
-      {
-        "featureType": "road.arterial",
-        "elementType": "geometry",
-        "stylers": [{"color": "#e0e0e0", "weight": 2}]
-      }
-    ]''';
-  }
-    */
   }
 
   Future<void> _fitMapBounds(GoogleMapController controller) async {
