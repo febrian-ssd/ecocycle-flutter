@@ -1,4 +1,4 @@
-v=// lib/screens/auth_wrapper.dart - PERBAIKAN UNTUK LANGSUNG KE MAPS
+// lib/screens/auth_wrapper.dart - FIXED ALL SYNTAX ERRORS
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:ecocycle_app/providers/auth_provider.dart';
@@ -15,14 +15,13 @@ class AuthWrapper extends StatefulWidget {
 }
 
 class _AuthWrapperState extends State<AuthWrapper> {
-  bool _shouldShowMapsFirst = true; // Flag untuk menentukan apakah harus ke maps dulu
+  bool _shouldShowMapsFirst = true;
 
   @override
   void initState() {
     super.initState();
     debugPrint('🏠 AuthWrapper initialized');
     
-    // Initialize auth state when AuthWrapper is created
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initializeAuth();
     });
@@ -36,28 +35,24 @@ class _AuthWrapperState extends State<AuthWrapper> {
       await authProvider.initializeAuth();
     }
 
-    // Check user preference untuk home screen vs maps
     await _checkUserPreference();
   }
 
   Future<void> _checkUserPreference() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      // Cek apakah user pernah mengatur preferensi
       final hasSetPreference = prefs.getBool('has_set_home_preference') ?? false;
       
       if (!hasSetPreference) {
-        // Jika belum pernah set, default ke maps (sesuai behavior lama)
         _shouldShowMapsFirst = true;
       } else {
-        // Jika sudah pernah set, ikuti preferensi user
         _shouldShowMapsFirst = prefs.getBool('show_maps_first') ?? false;
       }
       
       setState(() {});
     } catch (e) {
       debugPrint('❌ Error checking user preference: $e');
-      _shouldShowMapsFirst = true; // Default ke maps jika error
+      _shouldShowMapsFirst = true;
     }
   }
 
@@ -74,23 +69,21 @@ class _AuthWrapperState extends State<AuthWrapper> {
         debugPrint('   isLoading: ${auth.isLoading}');
         debugPrint('   isInitialized: ${auth.isInitialized}');
 
-        // Show loading screen while initializing or processing
         if (auth.isLoading || !auth.isInitialized) {
-          debugPrint('🏠 Showing loading screen (loading: ${auth.isLoading}, initialized: ${auth.isInitialized})');
-          return const Scaffold(
-            backgroundColor: Color(0xFF121212),
+          debugPrint('🏠 Showing loading screen');
+          return Scaffold(
+            backgroundColor: const Color(0xFF121212),
             body: Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  // Logo
-                  Icon(
+                  const Icon(
                     Icons.eco,
                     size: 80,
                     color: Color(0xFF4CAF50),
                   ),
-                  SizedBox(height: 24),
-                  Text(
+                  const SizedBox(height: 24),
+                  const Text(
                     'EcoCycle',
                     style: TextStyle(
                       color: Colors.white,
@@ -98,13 +91,13 @@ class _AuthWrapperState extends State<AuthWrapper> {
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                  SizedBox(height: 40),
-                  CircularProgressIndicator(
+                  const SizedBox(height: 40),
+                  const CircularProgressIndicator(
                     color: Color(0xFF4CAF50),
                     strokeWidth: 3,
                   ),
-                  SizedBox(height: 16),
-                  Text(
+                  const SizedBox(height: 16),
+                  const Text(
                     'Loading...',
                     style: TextStyle(
                       color: Colors.white,
@@ -118,13 +111,11 @@ class _AuthWrapperState extends State<AuthWrapper> {
           );
         }
 
-        // If authenticated, decide which screen to show
         if (auth.isLoggedIn && auth.isAuthenticated) {
           debugPrint('✅ User is authenticated');
           
-          // PERBAIKAN: Pilih screen berdasarkan preferensi
           if (_shouldShowMapsFirst) {
-            debugPrint('🗺️ Showing MapPage first (as requested)');
+            debugPrint('🗺️ Showing MapPage first');
             return MapScreenWrapper(
               onNavigateToHome: () {
                 setState(() {
@@ -156,7 +147,6 @@ class _AuthWrapperState extends State<AuthWrapper> {
   }
 }
 
-// Wrapper untuk MapPage dengan tombol navigasi ke Home
 class MapScreenWrapper extends StatelessWidget {
   final VoidCallback onNavigateToHome;
 
@@ -170,10 +160,8 @@ class MapScreenWrapper extends StatelessWidget {
     return Scaffold(
       body: Stack(
         children: [
-          // Map content
           const MapPage(),
           
-          // Floating action button untuk ke Home
           Positioned(
             bottom: 30,
             right: 20,
@@ -208,7 +196,6 @@ class MapScreenWrapper extends StatelessWidget {
             ),
           ),
           
-          // Settings button untuk mengubah preferensi
           Positioned(
             top: 60,
             right: 20,
@@ -216,7 +203,7 @@ class MapScreenWrapper extends StatelessWidget {
               child: FloatingActionButton.small(
                 heroTag: "settings",
                 onPressed: () => _showPreferenceDialog(context),
-                backgroundColor: Colors.white.withValues(alpha: 0.9),
+                backgroundColor: Colors.white.withOpacity(0.9),
                 child: const Icon(
                   Icons.settings,
                   color: Color(0xFF4CAF50),
@@ -248,14 +235,14 @@ class MapScreenWrapper extends StatelessWidget {
             TextButton(
               onPressed: () {
                 Navigator.of(context).pop();
-                _setPreference(context, true); // Maps first
+                _setPreference(context, true);
               },
               child: const Text('Maps Dulu'),
             ),
             TextButton(
               onPressed: () {
                 Navigator.of(context).pop();
-                _setPreference(context, false); // Home first
+                _setPreference(context, false);
               },
               child: const Text('Home Dulu'),
             ),
@@ -291,7 +278,6 @@ class MapScreenWrapper extends StatelessWidget {
   }
 }
 
-// Alternative simple AuthWrapper for testing without auto-login
 class SimpleAuthWrapper extends StatelessWidget {
   const SimpleAuthWrapper({super.key});
 
@@ -301,7 +287,6 @@ class SimpleAuthWrapper extends StatelessWidget {
       builder: (context, auth, _) {
         debugPrint('🏠 SimpleAuthWrapper - isLoggedIn: ${auth.isLoggedIn}');
         
-        // Simple direct check without auto-initialization
         if (auth.isLoggedIn) {
           return const HomeScreen();
         } else {

@@ -1,4 +1,4 @@
-// lib/providers/auth_provider.dart - PERBAIKAN LENGKAP UNTUK STATE MANAGEMENT
+// lib/providers/auth_provider.dart - FIXED UNUSED ELEMENT WARNING
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:ecocycle_app/services/api_service.dart';
@@ -18,7 +18,7 @@ class AuthProvider extends ChangeNotifier {
   String? _errorMessage;
   bool _hasWalletError = false;
   
-  // PERBAIKAN: Add connection status tracking
+  // Connection status tracking
   bool _isConnected = true;
   bool _isRefreshing = false;
   
@@ -42,10 +42,9 @@ class AuthProvider extends ChangeNotifier {
   String get userRole => _user?.role ?? 'unknown';
   String get userRoleDisplay => _user?.roleDisplay ?? 'Unknown';
   
-  // PERBAIKAN: Helper getters dengan fallback values yang lebih baik
+  // Balance getters with fallback values
   double get balanceRp {
     if (_wallet == null || _hasWalletError) {
-      // PERBAIKAN: Return demo balance instead of 0
       return 100000.0; // Demo balance
     }
     
@@ -60,7 +59,6 @@ class AuthProvider extends ChangeNotifier {
   
   int get balanceKoin {
     if (_wallet == null || _hasWalletError) {
-      // PERBAIKAN: Return demo coins instead of 0
       return 250; // Demo coins
     }
     
@@ -91,12 +89,10 @@ class AuthProvider extends ChangeNotifier {
     _initializeAuth();
   }
 
-  // PERBAIKAN: Better initialization with connection check
   Future<void> _initializeAuth() async {
     debugPrint('🔄 AuthProvider._initializeAuth() START');
     
     try {
-      // PERBAIKAN: Check connection first
       _isConnected = await _checkConnection();
       
       final prefs = await SharedPreferences.getInstance();
@@ -112,7 +108,6 @@ class AuthProvider extends ChangeNotifier {
           debugPrint('✅ Session restored successfully');
         } catch (e) {
           debugPrint('❌ Failed to restore session: $e');
-          // PERBAIKAN: Don't clear data immediately, try offline mode
           _setOfflineMode();
         }
       } else {
@@ -120,7 +115,6 @@ class AuthProvider extends ChangeNotifier {
       }
     } catch (e) {
       debugPrint('❌ Error initializing auth: $e');
-      // PERBAIKAN: Set offline mode instead of clearing all data
       _setOfflineMode();
     } finally {
       _isInitialized = true;
@@ -129,7 +123,6 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  // PERBAIKAN: Check connection status
   Future<bool> _checkConnection() async {
     try {
       final result = await _apiService.testConnection();
@@ -140,13 +133,11 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  // PERBAIKAN: Set offline mode with demo data
   void _setOfflineMode() {
     debugPrint('📴 Setting offline mode with demo data');
     _isConnected = false;
     _hasWalletError = true;
     
-    // Keep user logged in with demo data if token exists
     if (_token != null && _user == null) {
       _user = User(
         id: 999,
@@ -172,19 +163,16 @@ class AuthProvider extends ChangeNotifier {
     };
   }
 
-  // PUBLIC METHOD: Initialize auth
   Future<void> initializeAuth() async {
     await _initializeAuth();
   }
 
-  // PERBAIKAN: Enhanced login with better error handling
   Future<void> login(String email, String password) async {
     debugPrint('🔐 AuthProvider.login() START for: $email');
     _setLoading(true);
     _errorMessage = null;
     
     try {
-      // PERBAIKAN: Check connection before login
       _isConnected = await _checkConnection();
       
       final response = await _apiService.login(email, password);
@@ -201,23 +189,18 @@ class AuthProvider extends ChangeNotifier {
         throw Exception('Token tidak ditemukan dalam respons server');
       }
       
-      // Parse user data
       final userData = data['user'];
       _user = User.fromJson(userData);
       
       debugPrint('✅ Login successful, role: ${_user?.role}');
       
-      // Load wallet data with fallback
       await _loadWalletDataSafely();
-      
-      // Save to local storage
       await _saveToLocalStorage();
       
     } catch (e) {
       debugPrint('❌ Login failed: $e');
       _errorMessage = e.toString().replaceFirst('Exception: ', '');
       
-      // PERBAIKAN: Better error handling for different scenarios
       if (e.toString().contains('internet') || e.toString().contains('timeout')) {
         _setOfflineMode();
         _errorMessage = 'Koneksi bermasalah. Mencoba mode offline...';
@@ -231,7 +214,6 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  // PERBAIKAN: Enhanced register method
   Future<void> register(Map<String, String> userData) async {
     debugPrint('👤 AuthProvider.register() START');
     _setLoading(true);
@@ -254,16 +236,12 @@ class AuthProvider extends ChangeNotifier {
         throw Exception('Token tidak ditemukan dalam respons server');
       }
       
-      // Parse user data
       final userDataResponse = data['user'];
       _user = User.fromJson(userDataResponse);
       
       debugPrint('✅ Registration successful, role: ${_user?.role}');
       
-      // Load wallet data with fallback
       await _loadWalletDataSafely();
-      
-      // Save to local storage
       await _saveToLocalStorage();
       
     } catch (e) {
@@ -299,7 +277,6 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  // PERBAIKAN: Better user data loading with fallback
   Future<void> _loadUserData() async {
     if (_token == null) return;
     
@@ -320,12 +297,10 @@ class AuthProvider extends ChangeNotifier {
         throw Exception('Sesi Anda telah berakhir. Silakan login kembali.');
       }
       
-      // PERBAIKAN: Set offline mode instead of throwing error
       _setOfflineMode();
     }
   }
 
-  // PERBAIKAN: Safe wallet data loading with better fallback
   Future<void> _loadWalletDataSafely() async {
     if (_token == null) return;
     
@@ -356,11 +331,6 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  // PERBAIKAN: Legacy method for backward compatibility
-  Future<void> _loadWalletData() async {
-    await _loadWalletDataSafely();
-  }
-
   Future<void> _verifyToken() async {
     if (_token == null) return;
     
@@ -379,7 +349,6 @@ class AuthProvider extends ChangeNotifier {
     } catch (e) {
       debugPrint('❌ Token verification failed: $e');
       
-      // PERBAIKAN: Don't clear data immediately for connection issues
       if (e.toString().contains('internet') || e.toString().contains('timeout')) {
         _setOfflineMode();
       } else {
@@ -389,7 +358,6 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  // PERBAIKAN: Better demo wallet values
   void _setDemoWalletValues() {
     _wallet = {
       'success': true,
@@ -405,7 +373,6 @@ class AuthProvider extends ChangeNotifier {
     };
   }
 
-  // PERBAIKAN: Enhanced refresh with connection check
   Future<void> refreshAllData() async {
     debugPrint('🔄 Refreshing all user data...');
     
@@ -418,7 +385,6 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
     
     try {
-      // Check connection first
       _isConnected = await _checkConnection();
       
       if (_isConnected) {
@@ -463,7 +429,6 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  // PERBAIKAN: Enhanced profile update
   Future<void> updateProfile(Map<String, String> userData) async {
     debugPrint('📝 Updating user profile...');
     _setLoading(true);
@@ -497,7 +462,6 @@ class AuthProvider extends ChangeNotifier {
         await prefs.setString('auth_token', _token!);
       }
       
-      // PERBAIKAN: Save user data for offline access
       if (_user != null) {
         await prefs.setString('user_data', _user!.toJson().toString());
       }
@@ -534,7 +498,6 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // PERBAIKAN: Enhanced debug method
   void debugCurrentState() {
     debugPrint('🔍 AuthProvider Enhanced State:');
     debugPrint('   isLoggedIn: $isLoggedIn');
@@ -561,7 +524,6 @@ class AuthProvider extends ChangeNotifier {
     return '';
   }
 
-  // PERBAIKAN: Connection status methods
   void setConnectionStatus(bool isConnected) {
     if (_isConnected != isConnected) {
       _isConnected = isConnected;

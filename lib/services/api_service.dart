@@ -1,4 +1,4 @@
-// lib/services/api_service.dart - PERBAIKAN LENGKAP UNTUK FITUR YANG TIDAK BERFUNGSI
+// lib/services/api_service.dart - FIXED ALL MISSING METHODS AND TYPE ERRORS
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
@@ -9,7 +9,6 @@ class ApiService {
   static const String baseUrl = 'https://ecocylce.my.id/api';
   static const Duration timeoutDuration = Duration(seconds: 30);
 
-  // Helper method to create headers
   Map<String, String> _getHeaders({String? token}) {
     final headers = {
       'Content-Type': 'application/json',
@@ -23,13 +22,29 @@ class ApiService {
     return headers;
   }
 
-  // Enhanced HTTP request wrapper with better error handling
+  // FIXED: Added testConnection method
+  Future<bool> testConnection() async {
+    try {
+      debugPrint('🔍 Testing API connection...');
+      final response = await http.get(
+        Uri.parse('$baseUrl/health'),
+        headers: _getHeaders(),
+      ).timeout(const Duration(seconds: 5));
+      
+      bool isConnected = response.statusCode == 200;
+      debugPrint('🔍 Connection test result: $isConnected');
+      return isConnected;
+    } catch (e) {
+      debugPrint('❌ Connection test failed: $e');
+      return false;
+    }
+  }
+
   Future<Map<String, dynamic>> _makeRequest(
     String method,
     String endpoint,
     {Map<String, String>? headers, 
-     Map<String, dynamic>? body,
-     bool expectSuccess = true}) async {
+     Map<String, dynamic>? body}) async {
     
     final uri = Uri.parse('$baseUrl$endpoint');
     debugPrint('🌐 Making $method request to: $uri');
@@ -63,9 +78,7 @@ class ApiService {
       }
 
       debugPrint('🌐 HTTP response received: ${response.statusCode}');
-      debugPrint('🌐 Response body preview: ${response.body.substring(0, response.body.length > 200 ? 200 : response.body.length)}...');
       
-      // Try to parse response body
       Map<String, dynamic> responseData;
       try {
         responseData = jsonDecode(response.body);
@@ -74,15 +87,11 @@ class ApiService {
         responseData = {'message': 'Invalid server response', 'raw_body': response.body};
       }
 
-      // Handle different status codes
       if (response.statusCode >= 200 && response.statusCode < 300) {
         debugPrint('✅ Request successful: ${response.statusCode}');
         return responseData;
       } else {
         debugPrint('❌ HTTP Error: ${response.statusCode}');
-        debugPrint('❌ Response body: ${response.body}');
-        
-        // Handle specific server errors
         String errorMessage = _getErrorMessage(response.statusCode, responseData);
         throw Exception(errorMessage);
       }
@@ -138,7 +147,7 @@ class ApiService {
     }
   }
 
-  // PERBAIKAN: Authentication methods
+  // Authentication methods
   Future<Map<String, dynamic>> login(String email, String password) async {
     debugPrint('🔐 Attempting login for: $email');
     
@@ -157,7 +166,6 @@ class ApiService {
       return response;
     } catch (e) {
       debugPrint('❌ Login failed: $e');
-      // PERBAIKAN: Handle specific login errors
       if (e.toString().contains('401') || e.toString().contains('Invalid credentials')) {
         throw Exception('Email atau password salah');
       }
@@ -197,11 +205,9 @@ class ApiService {
       debugPrint('✅ Logout successful');
     } catch (e) {
       debugPrint('⚠️ Logout failed (continuing anyway): $e');
-      // Don't throw error for logout failures
     }
   }
 
-  // PERBAIKAN: User data methods
   Future<Map<String, dynamic>> getUser(String token) async {
     debugPrint('👤 Getting user data');
     
@@ -239,7 +245,6 @@ class ApiService {
     }
   }
 
-  // PERBAIKAN: Wallet methods dengan fallback behavior yang lebih baik
   Future<Map<String, dynamic>> getWallet(String token, {String? endpoint}) async {
     debugPrint('💰 Getting wallet data');
     
@@ -255,7 +260,6 @@ class ApiService {
     } catch (e) {
       debugPrint('❌ Failed to get wallet data: $e');
       
-      // PERBAIKAN: Fallback yang lebih baik
       if (e.toString().contains('does not exist') || 
           e.toString().contains('pengembangan') ||
           e.toString().contains('404')) {
@@ -265,9 +269,9 @@ class ApiService {
           'success': true,
           'message': 'Using demo data - Wallet service under development',
           'data': {
-            'balance_rp': 100000.0,  // Demo balance
-            'balance_koin': 250,     // Demo coins
-            'balance_coins': 250,    // Alias
+            'balance_rp': 100000.0,
+            'balance_koin': 250,
+            'balance_coins': 250,
           },
           'balance_rp': 100000.0,
           'balance_koin': 250,
@@ -279,7 +283,137 @@ class ApiService {
     }
   }
 
-  // PERBAIKAN: Transaction methods
+  // FIXED: Added getScanHistory method
+  Future<Map<String, dynamic>> getScanHistory(String token) async {
+    debugPrint('📊 Getting scan history');
+    
+    try {
+      final response = await _makeRequest(
+        'GET',
+        '/user/scan-history',
+        headers: _getHeaders(token: token),
+      );
+      
+      debugPrint('✅ Scan history retrieved successfully');
+      return response;
+    } catch (e) {
+      debugPrint('❌ Failed to get scan history, trying fallback: $e');
+      
+      // Fallback to general history
+      try {
+        final historyList = await getHistory(token);
+        final scanHistory = historyList.where((item) => 
+          item['type'] == 'scan' || 
+          item['activity_type'] == 'scan' ||
+          item.containsKey('qr_code') ||
+          item.containsKey('dropbox_id') ||
+          item.containsKey('waste_type')
+        ).toList();
+        
+        return {
+          'data': scanHistory,
+          'meta': {'total': scanHistory.length},
+        };
+      } catch (fallbackError) {
+        debugPrint('❌ Fallback scan history also failed: $fallbackError');
+        return {'data': [], 'meta': {'total': 0}};
+      }
+    }
+  }
+
+  // FIXED: Added getScanStats method
+  Future<Map<String, dynamic>> getScanStats(String token) async {
+    debugPrint('📈 Getting scan stats');
+    
+    try {
+      final response = await _makeRequest(
+        'GET',
+        '/user/scan-stats',
+        headers: _getHeaders(token: token),
+      );
+      
+      debugPrint('✅ Scan stats retrieved successfully');
+      return response;
+    } catch (e) {
+      debugPrint('❌ Failed to get scan stats, calculating from history: $e');
+      
+      try {
+        final historyList = await getHistory(token);
+        int totalScans = 0;
+        int totalCoinsEarned = 0;
+        double totalWasteWeight = 0.0;
+        
+        for (var item in historyList) {
+          if (item['type'] == 'scan' || 
+              item['activity_type'] == 'scan' ||
+              item.containsKey('waste_type')) {
+            totalScans++;
+            totalCoinsEarned += (item['coins_earned'] ?? item['eco_coins'] ?? 0) as int;
+            totalWasteWeight += double.tryParse(item['weight']?.toString() ?? item['weight_g']?.toString() ?? '0') ?? 0.0;
+          }
+        }
+        
+        return {
+          'data': {
+            'total_scans': totalScans,
+            'total_coins_earned': totalCoinsEarned,
+            'total_waste_weight': totalWasteWeight,
+          }
+        };
+      } catch (fallbackError) {
+        debugPrint('❌ Fallback scan stats calculation failed: $fallbackError');
+        return {
+          'data': {
+            'total_scans': 0,
+            'total_coins_earned': 0,
+            'total_waste_weight': 0.0,
+          }
+        };
+      }
+    }
+  }
+
+  // FIXED: Added getTransactionHistory method
+  Future<Map<String, dynamic>> getTransactionHistory(String token) async {
+    debugPrint('💳 Getting transaction history');
+    
+    try {
+      final response = await _makeRequest(
+        'GET',
+        '/user/transaction-history',
+        headers: _getHeaders(token: token),
+      );
+      
+      debugPrint('✅ Transaction history retrieved successfully');
+      return response;
+    } catch (e) {
+      debugPrint('❌ Failed to get transaction history, using transactions: $e');
+      
+      try {
+        final transactions = await getTransactions(token);
+        
+        final transactionData = transactions.map((t) => {
+          'id': t.id,
+          'type': t.type,
+          'type_label': t.typeDisplayName,
+          'amount_rp': t.amountRp,
+          'amount_coins': t.amountCoins,
+          'description': t.description,
+          'created_at': t.createdAt.toIso8601String(),
+          'is_income': t.isIncome,
+        }).toList();
+        
+        return {
+          'data': transactionData,
+          'meta': {'total': transactionData.length},
+        };
+      } catch (fallbackError) {
+        debugPrint('❌ Fallback transaction history also failed: $fallbackError');
+        return {'data': [], 'meta': {'total': 0}};
+      }
+    }
+  }
+
   Future<List<Transaction>> getTransactions(String token) async {
     debugPrint('📊 Getting transactions');
     
@@ -290,22 +424,22 @@ class ApiService {
         headers: _getHeaders(token: token),
       );
       
-      // PERBAIKAN: Handle different response formats
+      // FIXED: Handle different response formats correctly
       List<dynamic> transactionsData;
       
       if (response['data'] != null && response['data'] is List) {
-        transactionsData = response['data'];
+        transactionsData = response['data'] as List<dynamic>;
       } else if (response['transactions'] != null && response['transactions'] is List) {
-        transactionsData = response['transactions'];
+        transactionsData = response['transactions'] as List<dynamic>;
       } else if (response is List) {
-        transactionsData = response;
+        transactionsData = response as List<dynamic>;
       } else {
         transactionsData = [];
       }
       
       final transactions = transactionsData.map((data) {
         try {
-          return Transaction.fromJson(data);
+          return Transaction.fromJson(data as Map<String, dynamic>);
         } catch (e) {
           debugPrint('❌ Failed to parse transaction: $data, error: $e');
           return null;
@@ -317,7 +451,6 @@ class ApiService {
     } catch (e) {
       debugPrint('❌ Failed to get transactions: $e');
       
-      // PERBAIKAN: Return demo data instead of empty list
       if (e.toString().contains('does not exist') || e.toString().contains('pengembangan')) {
         debugPrint('⚠️ Transactions endpoint not available, using demo data');
         return _getDemoTransactions();
@@ -327,7 +460,6 @@ class ApiService {
     }
   }
 
-  // PERBAIKAN: Demo transaction data
   List<Transaction> _getDemoTransactions() {
     return [
       Transaction(
@@ -349,7 +481,7 @@ class ApiService {
     ];
   }
 
-  // PERBAIKAN: Dropbox methods
+  // FIXED: Properly handle dropboxes response
   Future<List<Map<String, dynamic>>> getDropboxes(String token) async {
     debugPrint('📍 Getting dropbox locations');
     
@@ -360,15 +492,15 @@ class ApiService {
         headers: _getHeaders(token: token),
       );
       
-      // PERBAIKAN: Handle different response formats
+      // FIXED: Handle different response formats correctly
       List<dynamic> dropboxData;
       
       if (response is List) {
-        dropboxData = response;
+        dropboxData = response as List<dynamic>;
       } else if (response['data'] != null && response['data'] is List) {
-        dropboxData = response['data'];
+        dropboxData = response['data'] as List<dynamic>;
       } else if (response['dropboxes'] != null && response['dropboxes'] is List) {
-        dropboxData = response['dropboxes'];
+        dropboxData = response['dropboxes'] as List<dynamic>;
       } else {
         dropboxData = [];
       }
@@ -378,7 +510,6 @@ class ApiService {
     } catch (e) {
       debugPrint('❌ Failed to get dropbox locations: $e');
       
-      // PERBAIKAN: Return demo dropbox data
       if (e.toString().contains('does not exist') || e.toString().contains('pengembangan')) {
         debugPrint('⚠️ Dropbox locations endpoint not available, using demo data');
         return _getDemoDropboxes();
@@ -388,7 +519,6 @@ class ApiService {
     }
   }
 
-  // PERBAIKAN: Demo dropbox data
   List<Map<String, dynamic>> _getDemoDropboxes() {
     return [
       {
@@ -415,7 +545,7 @@ class ApiService {
     ];
   }
 
-  // PERBAIKAN: History methods dengan fallback
+  // FIXED: Properly handle history response
   Future<List<Map<String, dynamic>>> getHistory(String token, {String? type}) async {
     debugPrint('📜 Getting general history');
     
@@ -431,14 +561,15 @@ class ApiService {
         headers: _getHeaders(token: token),
       );
       
+      // FIXED: Handle different response formats correctly
       List<dynamic> historyData;
       
       if (response['data'] != null && response['data'] is List) {
-        historyData = response['data'];
+        historyData = response['data'] as List<dynamic>;
       } else if (response['history'] != null && response['history'] is List) {
-        historyData = response['history'];
+        historyData = response['history'] as List<dynamic>;
       } else if (response is List) {
-        historyData = response;
+        historyData = response as List<dynamic>;
       } else {
         historyData = [];
       }
@@ -457,7 +588,6 @@ class ApiService {
     }
   }
 
-  // PERBAIKAN: Demo history data
   List<Map<String, dynamic>> _getDemoHistory() {
     return [
       {
@@ -491,7 +621,6 @@ class ApiService {
     ];
   }
 
-  // PERBAIKAN: Transfer method dengan better validation
   Future<Map<String, dynamic>> transfer(
     String token, {
     required String email,
@@ -520,7 +649,6 @@ class ApiService {
     }
   }
 
-  // PERBAIKAN: Enhanced topup method
   Future<Map<String, dynamic>> topupRequest(
     String token, {
     required double amount,
@@ -547,7 +675,6 @@ class ApiService {
     }
   }
 
-  // PERBAIKAN: Enhanced exchange coins method
   Future<Map<String, dynamic>> exchangeCoins(
     String token, {
     required int coinAmount,
@@ -572,7 +699,6 @@ class ApiService {
     }
   }
 
-  // PERBAIKAN: Scan confirmation method
   Future<Map<String, dynamic>> confirmScan(
     String token, {
     required String dropboxCode,
