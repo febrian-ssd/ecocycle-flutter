@@ -1,4 +1,4 @@
-// lib/services/api_service.dart - IMPROVED VERSION WITH BETTER ERROR HANDLING
+// lib/services/api_service.dart - COMPLETE VERSION WITH ALL MISSING METHODS
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
@@ -212,6 +212,26 @@ class ApiService {
     }
   }
 
+  // UPDATE PROFILE METHOD (for edit_profile_screen.dart)
+  Future<Map<String, dynamic>> updateProfile(String token, Map<String, String> userData) async {
+    debugPrint('📝 Updating user profile');
+    
+    try {
+      final response = await _makeRequest(
+        'PUT',
+        '/profile',
+        headers: _getHeaders(token: token),
+        body: userData,
+      );
+      
+      debugPrint('✅ Profile updated successfully');
+      return response;
+    } catch (e) {
+      debugPrint('❌ Failed to update profile: $e');
+      rethrow;
+    }
+  }
+
   // Enhanced wallet method with fallback behavior
   Future<Map<String, dynamic>> getWallet(String token) async {
     debugPrint('💰 Getting wallet data');
@@ -249,7 +269,7 @@ class ApiService {
     }
   }
 
-  // Enhanced transaction history method
+  // TRANSACTION HISTORY METHODS (for ecopay_page.dart and history_page.dart)
   Future<Map<String, dynamic>> getTransactionHistory(String token) async {
     debugPrint('📊 Getting transaction history');
     
@@ -276,6 +296,168 @@ class ApiService {
         };
       }
       
+      rethrow;
+    }
+  }
+
+  // ALIAS METHOD for getTransactionHistory (for compatibility)
+  Future<Map<String, dynamic>> getTransactions(String token) async {
+    return await getTransactionHistory(token);
+  }
+
+  // SCAN HISTORY METHODS (for history_page.dart)
+  Future<Map<String, dynamic>> getScanHistory(String token) async {
+    debugPrint('📊 Getting scan history');
+    
+    try {
+      final response = await _makeRequest(
+        'GET',
+        '/scan-history',
+        headers: _getHeaders(token: token),
+      );
+      
+      debugPrint('✅ Scan history retrieved successfully');
+      return response;
+    } catch (e) {
+      debugPrint('❌ Failed to get scan history: $e');
+      
+      // Return empty history if endpoint doesn't exist
+      if (e.toString().contains('does not exist') || e.toString().contains('pengembangan')) {
+        debugPrint('⚠️ Scan history endpoint not available, using fallback');
+        return {
+          'success': false,
+          'message': 'Scan history temporarily unavailable',
+          'data': [],
+          'history': []
+        };
+      }
+      
+      rethrow;
+    }
+  }
+
+  // SCAN STATS METHOD (for history_page.dart)
+  Future<Map<String, dynamic>> getScanStats(String token) async {
+    debugPrint('📈 Getting scan statistics');
+    
+    try {
+      final response = await _makeRequest(
+        'GET',
+        '/scan-stats',
+        headers: _getHeaders(token: token),
+      );
+      
+      debugPrint('✅ Scan stats retrieved successfully');
+      return response;
+    } catch (e) {
+      debugPrint('❌ Failed to get scan stats: $e');
+      
+      // Return empty stats if endpoint doesn't exist
+      if (e.toString().contains('does not exist') || e.toString().contains('pengembangan')) {
+        debugPrint('⚠️ Scan stats endpoint not available, using fallback');
+        return {
+          'success': false,
+          'message': 'Scan statistics temporarily unavailable',
+          'data': {
+            'total_scans': 0,
+            'total_points': 0,
+            'recent_scans': [],
+          }
+        };
+      }
+      
+      rethrow;
+    }
+  }
+
+  // GENERAL HISTORY METHOD (for history_page.dart and profile_page.dart)
+  Future<Map<String, dynamic>> getHistory(String token, {String? type}) async {
+    debugPrint('📜 Getting general history');
+    
+    try {
+      String endpoint = '/history';
+      if (type != null) {
+        endpoint += '?type=$type';
+      }
+      
+      final response = await _makeRequest(
+        'GET',
+        endpoint,
+        headers: _getHeaders(token: token),
+      );
+      
+      debugPrint('✅ History retrieved successfully');
+      return response;
+    } catch (e) {
+      debugPrint('❌ Failed to get history: $e');
+      
+      // Return empty history if endpoint doesn't exist
+      if (e.toString().contains('does not exist') || e.toString().contains('pengembangan')) {
+        debugPrint('⚠️ History endpoint not available, using fallback');
+        return {
+          'success': false,
+          'message': 'History temporarily unavailable',
+          'data': [],
+          'history': []
+        };
+      }
+      
+      rethrow;
+    }
+  }
+
+  // DROPBOX METHODS (for map_page.dart)
+  Future<Map<String, dynamic>> getDropboxLocations(String token) async {
+    debugPrint('📍 Getting dropbox locations');
+    
+    try {
+      final response = await _makeRequest(
+        'GET',
+        '/dropboxes',
+        headers: _getHeaders(token: token),
+      );
+      
+      debugPrint('✅ Dropbox locations retrieved successfully');
+      return response;
+    } catch (e) {
+      debugPrint('❌ Failed to get dropbox locations: $e');
+      
+      // Return empty locations if endpoint doesn't exist
+      if (e.toString().contains('does not exist') || e.toString().contains('pengembangan')) {
+        debugPrint('⚠️ Dropbox locations endpoint not available, using fallback');
+        return {
+          'success': false,
+          'message': 'Dropbox locations temporarily unavailable',
+          'data': [],
+          'dropboxes': []
+        };
+      }
+      
+      rethrow;
+    }
+  }
+
+  // ALIAS METHOD for getDropboxLocations (for compatibility)
+  Future<Map<String, dynamic>> getDropboxes(String token) async {
+    return await getDropboxLocations(token);
+  }
+
+  // SCAN CONFIRMATION METHOD (for konfirmasi_scan_screen.dart)
+  Future<Map<String, dynamic>> confirmScan(String token, Map<String, dynamic> scanData) async {
+    debugPrint('✅ Confirming scan with data: $scanData');
+    
+    try {
+      final response = await _makeRequest(
+        'POST',
+        '/confirm-scan',
+        headers: _getHeaders(token: token),
+        body: scanData,
+      );
+      
+      debugPrint('✅ Scan confirmed successfully');
+      return response;
+    } catch (e) {
+      debugPrint('❌ Failed to confirm scan: $e');
       rethrow;
     }
   }
@@ -357,37 +539,6 @@ class ApiService {
       return response;
     } catch (e) {
       debugPrint('❌ Coin exchange failed: $e');
-      rethrow;
-    }
-  }
-
-  // Get dropbox locations
-  Future<Map<String, dynamic>> getDropboxLocations(String token) async {
-    debugPrint('📍 Getting dropbox locations');
-    
-    try {
-      final response = await _makeRequest(
-        'GET',
-        '/dropboxes',
-        headers: _getHeaders(token: token),
-      );
-      
-      debugPrint('✅ Dropbox locations retrieved successfully');
-      return response;
-    } catch (e) {
-      debugPrint('❌ Failed to get dropbox locations: $e');
-      
-      // Return empty locations if endpoint doesn't exist
-      if (e.toString().contains('does not exist') || e.toString().contains('pengembangan')) {
-        debugPrint('⚠️ Dropbox locations endpoint not available, using fallback');
-        return {
-          'success': false,
-          'message': 'Dropbox locations temporarily unavailable',
-          'data': [],
-          'dropboxes': []
-        };
-      }
-      
       rethrow;
     }
   }

@@ -1,4 +1,4 @@
-// lib/providers/auth_provider.dart - IMPROVED VERSION WITH GRACEFUL ERROR HANDLING
+// lib/providers/auth_provider.dart - COMPLETE VERSION WITH ALL MISSING METHODS
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:ecocycle_app/services/api_service.dart';
@@ -90,6 +90,11 @@ class AuthProvider extends ChangeNotifier {
       debugPrint('✅ AuthProvider initialization complete');
       notifyListeners();
     }
+  }
+
+  // PUBLIC METHOD: Initialize auth (called from main.dart and auth_wrapper.dart)
+  Future<void> initializeAuth() async {
+    await _initializeAuth();
   }
 
   Future<void> login(String email, String password) async {
@@ -308,6 +313,47 @@ class AuthProvider extends ChangeNotifier {
       _errorMessage = 'Gagal memuat data wallet';
       notifyListeners();
     }
+  }
+
+  // UPDATE PROFILE METHOD (for edit_profile_screen.dart)
+  Future<void> updateProfile(Map<String, String> userData) async {
+    debugPrint('📝 Updating user profile...');
+    _setLoading(true);
+    _errorMessage = null;
+    
+    try {
+      if (_token == null) {
+        throw Exception('Token tidak tersedia');
+      }
+      
+      // Call API to update profile
+      await _apiService.updateProfile(_token!, userData);
+      
+      // Reload user data to get updated info
+      await _loadUserData();
+      
+      debugPrint('✅ Profile updated successfully');
+      
+    } catch (e) {
+      debugPrint('❌ Profile update failed: $e');
+      _errorMessage = e.toString().replaceFirst('Exception: ', '');
+      rethrow;
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  // DEBUG CURRENT STATE METHOD (for auth_wrapper.dart)
+  void debugCurrentState() {
+    debugPrint('🔍 AuthProvider state in AuthWrapper:');
+    debugPrint('   isLoggedIn: $isLoggedIn');
+    debugPrint('   isAuthenticated: $isAuthenticated');
+    debugPrint('   isLoading: $isLoading');
+    debugPrint('   isInitialized: $isInitialized');
+    debugPrint('   token: ${_token?.substring(0, 10) ?? 'null'}...');
+    debugPrint('   user: ${_user != null ? 'loaded' : 'null'}');
+    debugPrint('   wallet: ${_wallet != null ? 'loaded' : 'null'}');
+    debugPrint('   hasWalletError: $hasWalletError');
   }
 
   Future<void> _saveToLocalStorage() async {
