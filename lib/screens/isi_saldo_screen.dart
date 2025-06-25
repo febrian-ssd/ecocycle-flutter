@@ -112,7 +112,7 @@ class _IsiSaldoScreenState extends State<IsiSaldoScreen> with TickerProviderStat
 
       debugPrint('✅ Topup request successful: $result');
 
-      // FIXED: Check if context is still mounted before using it
+      // FIXED: Added mounted check
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -133,7 +133,6 @@ class _IsiSaldoScreenState extends State<IsiSaldoScreen> with TickerProviderStat
       
       if (mounted) {
         String errorMessage = e.toString().replaceFirst('Exception: ', '');
-        _showErrorDialog(errorMessage);
         
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -155,158 +154,8 @@ class _IsiSaldoScreenState extends State<IsiSaldoScreen> with TickerProviderStat
     }
   }
 
-  void _showErrorDialog(String errorMessage) {
-    final token = Provider.of<AuthProvider>(context, listen: false).token;
-    
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF2A2A2A),
-        title: const Text(
-          'Debug - Topup Error',
-          style: TextStyle(color: Colors.white),
-        ),
-        content: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'Error Details:',
-                style: TextStyle(
-                  color: Colors.red[300],
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                errorMessage,
-                style: const TextStyle(color: Colors.white),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'Request Details:',
-                style: TextStyle(
-                  color: Colors.blue[300],
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Amount: ${ConversionUtils.toDouble(_amountController.text)}\n'
-                'Method: $_selectedMethod\n'
-                'Token: ${token?.substring(0, 10) ?? 'null'}...',
-                style: const TextStyle(color: Colors.white70),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _debugApiConnection();
-            },
-            child: const Text('Test Connection'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _debugApiConnection() async {
-    debugPrint('🔍 Testing API connection...');
-    
-    setState(() => _isLoading = true);
-    
-    try {
-      await _apiService.testConnection();
-      
-      final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      final token = authProvider.token;
-      
-      if (token != null) {
-        debugPrint('🔍 Testing with token: ${token.substring(0, 10)}...');
-        
-        try {
-          final walletData = await _apiService.getWallet(token);
-          debugPrint('✅ Wallet endpoint works: $walletData');
-        } catch (e) {
-          debugPrint('❌ Wallet endpoint failed: $e');
-        }
-        
-        try {
-          await _apiService.topupRequest(token, amount: 10000, method: 'test');
-          debugPrint('✅ Topup endpoint accessible');
-        } catch (e) {
-          debugPrint('❌ Topup endpoint failed: $e');
-          
-          if (mounted) {
-            showDialog(
-              context: context,
-              builder: (context) => AlertDialog(
-                backgroundColor: const Color(0xFF2A2A2A),
-                title: const Text(
-                  'Connection Test Result',
-                  style: TextStyle(color: Colors.white),
-                ),
-                content: Text(
-                  'Topup Error: $e',
-                  style: const TextStyle(color: Colors.white),
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text('OK'),
-                  ),
-                ],
-              ),
-            );
-          }
-        }
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
-    }
-  }
-
   void _setQuickAmount(int amount) {
     _amountController.text = amount.toString();
-  }
-
-  Widget _buildInfoRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 80,
-            child: Text(
-              '$label:',
-              style: TextStyle(
-                color: Colors.grey[400],
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-          Expanded(
-            child: Text(
-              value,
-              style: const TextStyle(
-                color: Colors.white,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
   }
 
   @override
@@ -362,16 +211,16 @@ class _IsiSaldoScreenState extends State<IsiSaldoScreen> with TickerProviderStat
       margin: const EdgeInsets.all(16),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.1),
+        color: Colors.white.withOpacity(0.1),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+        border: Border.all(color: Colors.white.withOpacity(0.2)),
       ),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.2),
+              color: Colors.white.withOpacity(0.2),
               borderRadius: BorderRadius.circular(12),
             ),
             child: const Icon(
@@ -428,12 +277,10 @@ class _IsiSaldoScreenState extends State<IsiSaldoScreen> with TickerProviderStat
             ),
             const SizedBox(height: 16),
             
-            // Payment Methods
             ..._topupMethods.map((method) => _buildPaymentMethodCard(method)),
             
             const SizedBox(height: 24),
             
-            // Amount Section
             const Text(
               'Jumlah Top Up',
               style: TextStyle(
@@ -444,7 +291,6 @@ class _IsiSaldoScreenState extends State<IsiSaldoScreen> with TickerProviderStat
             ),
             const SizedBox(height: 16),
             
-            // Quick Amount Buttons
             Wrap(
               spacing: 12,
               runSpacing: 12,
@@ -455,7 +301,6 @@ class _IsiSaldoScreenState extends State<IsiSaldoScreen> with TickerProviderStat
             
             const SizedBox(height: 16),
             
-            // Custom Amount Input
             TextFormField(
               controller: _amountController,
               keyboardType: TextInputType.number,
@@ -516,7 +361,6 @@ class _IsiSaldoScreenState extends State<IsiSaldoScreen> with TickerProviderStat
             
             const SizedBox(height: 32),
             
-            // Submit Button
             SizedBox(
               width: double.infinity,
               height: 56,
@@ -552,7 +396,6 @@ class _IsiSaldoScreenState extends State<IsiSaldoScreen> with TickerProviderStat
             
             const SizedBox(height: 16),
             
-            // Info Card
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -616,7 +459,7 @@ class _IsiSaldoScreenState extends State<IsiSaldoScreen> with TickerProviderStat
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFF4CAF50).withValues(alpha: 0.15) : const Color(0xFF2A2A2A),
+          color: isSelected ? const Color(0xFF4CAF50).withOpacity(0.15) : const Color(0xFF2A2A2A),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: isSelected ? const Color(0xFF4CAF50) : Colors.grey[600]!,

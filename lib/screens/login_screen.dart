@@ -340,19 +340,6 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 40),
-                
-                // Footer
-                Center(
-                  child: Text(
-                    'EcoCycle © 2025\nBersama menciptakan dunia yang lebih hijau',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: Colors.grey[600],
-                      fontSize: 12,
-                    ),
-                  ),
-                ),
               ],
             ),
           ),

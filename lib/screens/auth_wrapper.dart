@@ -46,7 +46,8 @@ class _AuthWrapperState extends State<AuthWrapper> {
         debugPrint('   isLoading: ${auth.isLoading}');
         debugPrint('   isInitialized: ${auth.isInitialized}');
         debugPrint('   token: ${auth.token?.substring(0, 10) ?? 'null'}...');
-        debugPrint('   user: ${auth.user?.keys ?? 'null'}');
+        // FIXED: Accessing user as an object, not a map
+        debugPrint('   user: ${auth.user?.toString() ?? 'null'}');
 
         // Show loading screen while initializing or processing
         if (auth.isLoading || !auth.isInitialized) {
@@ -145,9 +146,9 @@ class AuthDebugScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                const Text(
                   'Authentication Debug Info',
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: Colors.white,
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
@@ -171,6 +172,7 @@ class AuthDebugScreen extends StatelessWidget {
                   children: [
                     ElevatedButton(
                       onPressed: () {
+                        // FIXED: Method is available in the updated AuthProvider
                         auth.debugCurrentState();
                       },
                       style: ElevatedButton.styleFrom(

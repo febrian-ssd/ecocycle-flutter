@@ -23,7 +23,6 @@ class _ProfilePageState extends State<ProfilePage> with TickerProviderStateMixin
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
 
-  // Real data variables
   double _balanceRp = 0.0;
   int _balanceCoins = 0;
   int _totalScans = 0;
@@ -53,7 +52,6 @@ class _ProfilePageState extends State<ProfilePage> with TickerProviderStateMixin
     _fadeController.forward();
     _slideController.forward();
     
-    // Load real data
     _loadUserData();
   }
 
@@ -68,29 +66,26 @@ class _ProfilePageState extends State<ProfilePage> with TickerProviderStateMixin
     try {
       final token = Provider.of<AuthProvider>(context, listen: false).token;
       if (token != null) {
-        // Load wallet data
         final walletData = await _apiService.getWallet(token);
-        
-        // Load history data for statistics
-        // FIXED: Get List<Map<String, dynamic>> directly from API
         final historyList = await _apiService.getHistory(token);
         
-        // Calculate statistics from history
-        int totalScans = historyList.length;
+        int totalScans = 0;
         double totalWaste = 0.0;
         
-        // FIXED: Iterate over List properly
         for (var scan in historyList) {
-          double weight = ConversionUtils.toDouble(scan['weight'] ?? scan['weight_g'] ?? 0);
-          totalWaste += weight;
+          if(scan['type'] == 'scan' || scan['activity_type'] == 'scan') {
+            totalScans++;
+            double weight = ConversionUtils.toDouble(scan['weight'] ?? scan['weight_g'] ?? 0);
+            totalWaste += weight;
+          }
         }
         
         if (mounted) {
           setState(() {
             _balanceRp = ConversionUtils.toDouble(walletData['balance_rp']);
-            _balanceCoins = ConversionUtils.toInt(walletData['balance_coins']);
+            _balanceCoins = ConversionUtils.toInt(walletData['balance_koin']);
             _totalScans = totalScans;
-            _totalWasteKg = totalWaste / 1000; // Convert grams to kg
+            _totalWasteKg = totalWaste / 1000;
             _isLoading = false;
           });
         }
@@ -111,8 +106,9 @@ class _ProfilePageState extends State<ProfilePage> with TickerProviderStateMixin
   @override
   Widget build(BuildContext context) {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    final userName = authProvider.user?['name'] ?? 'Pengguna EcoCycle';
-    final userEmail = authProvider.user?['email'] ?? '';
+    // FIXED: Access properties via dot notation
+    final userName = authProvider.user?.name ?? 'Pengguna EcoCycle';
+    final userEmail = authProvider.user?.email ?? '';
 
     return Scaffold(
       backgroundColor: const Color(0xFF121212),
@@ -173,13 +169,12 @@ class _ProfilePageState extends State<ProfilePage> with TickerProviderStateMixin
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 const SizedBox(height: 40),
-                // Avatar dengan efek glow
                 Container(
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     boxShadow: [
                       BoxShadow(
-                        color: const Color(0xFF4CAF50).withValues(alpha: 0.3),
+                        color: const Color(0xFF4CAF50).withOpacity(0.3),
                         blurRadius: 20,
                         spreadRadius: 5,
                       ),
@@ -187,7 +182,7 @@ class _ProfilePageState extends State<ProfilePage> with TickerProviderStateMixin
                   ),
                   child: CircleAvatar(
                     radius: 50,
-                    backgroundColor: Colors.white.withValues(alpha: 0.2),
+                    backgroundColor: Colors.white.withOpacity(0.2),
                     child: CircleAvatar(
                       radius: 46,
                       backgroundColor: const Color(0xFF4CAF50),
@@ -204,7 +199,6 @@ class _ProfilePageState extends State<ProfilePage> with TickerProviderStateMixin
                 ),
                 const SizedBox(height: 16),
                 
-                // User name
                 Text(
                   userName,
                   style: const TextStyle(
@@ -215,18 +209,16 @@ class _ProfilePageState extends State<ProfilePage> with TickerProviderStateMixin
                 ),
                 const SizedBox(height: 4),
                 
-                // User email
                 Text(
                   userEmail,
                   style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.8),
+                    color: Colors.white.withOpacity(0.8),
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
                 const SizedBox(height: 16),
                 
-                // Edit profile button
                 ElevatedButton.icon(
                   onPressed: () {
                     Navigator.push(
@@ -244,7 +236,7 @@ class _ProfilePageState extends State<ProfilePage> with TickerProviderStateMixin
                           );
                         },
                       ),
-                    ).then((_) => _refreshData()); // Refresh data after editing
+                    ).then((_) => _refreshData());
                   },
                   icon: const Icon(Icons.edit, size: 16),
                   label: const Text(
@@ -255,7 +247,7 @@ class _ProfilePageState extends State<ProfilePage> with TickerProviderStateMixin
                     ),
                   ),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.white.withValues(alpha: 0.2),
+                    backgroundColor: Colors.white.withOpacity(0.2),
                     foregroundColor: Colors.white,
                     elevation: 0,
                     shape: RoundedRectangleBorder(
@@ -278,10 +270,10 @@ class _ProfilePageState extends State<ProfilePage> with TickerProviderStateMixin
       decoration: BoxDecoration(
         color: const Color(0xFF2A2A2A),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFF4CAF50).withValues(alpha: 0.3)),
+        border: Border.all(color: const Color(0xFF4CAF50).withOpacity(0.3)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.2),
+            color: Colors.black.withOpacity(0.2),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -294,7 +286,7 @@ class _ProfilePageState extends State<ProfilePage> with TickerProviderStateMixin
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF4CAF50).withValues(alpha: 0.2),
+                  color: const Color(0xFF4CAF50).withOpacity(0.2),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: const Icon(
@@ -326,7 +318,6 @@ class _ProfilePageState extends State<ProfilePage> with TickerProviderStateMixin
           ),
           const SizedBox(height: 20),
           
-          // Wallet Info Row
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
@@ -358,7 +349,6 @@ class _ProfilePageState extends State<ProfilePage> with TickerProviderStateMixin
           
           const SizedBox(height: 16),
           
-          // Activity Stats Row
           Row(
             children: [
               Expanded(child: _buildStatItem('Total Scan', _isLoading ? '...' : '$_totalScans', Icons.qr_code_scanner)),
@@ -469,48 +459,6 @@ class _ProfilePageState extends State<ProfilePage> with TickerProviderStateMixin
             ),
           ],
         ),
-        const SizedBox(height: 24),
-        _buildMenuCategory(
-          'Bantuan',
-          [
-            _buildMenuItem(
-              icon: Icons.help_outline,
-              title: 'Pusat Bantuan',
-              subtitle: 'FAQ dan panduan penggunaan',
-              onTap: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: const Text(
-                      'Fitur dalam pengembangan',
-                      style: TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                    backgroundColor: Colors.orange[700],
-                    behavior: SnackBarBehavior.floating,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                );
-              },
-            ),
-            _buildMenuItem(
-              icon: Icons.feedback_outlined,
-              title: 'Kirim Feedback',
-              subtitle: 'Berikan saran untuk perbaikan',
-              onTap: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: const Text(
-                      'Fitur dalam pengembangan',
-                      style: TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                    backgroundColor: Colors.orange[700],
-                    behavior: SnackBarBehavior.floating,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                );
-              },
-            ),
-          ],
-        ),
       ],
     );
   }
@@ -561,7 +509,7 @@ class _ProfilePageState extends State<ProfilePage> with TickerProviderStateMixin
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF4CAF50).withValues(alpha: 0.1),
+                  color: const Color(0xFF4CAF50).withOpacity(0.1),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Icon(
@@ -621,7 +569,7 @@ class _ProfilePageState extends State<ProfilePage> with TickerProviderStateMixin
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.red.withValues(alpha: 0.3),
+            color: Colors.red.withOpacity(0.3),
             blurRadius: 8,
             offset: const Offset(0, 4),
           ),
@@ -666,7 +614,7 @@ class _ProfilePageState extends State<ProfilePage> with TickerProviderStateMixin
           );
         },
       ),
-    ).then((_) => _refreshData()); // Refresh data when returning
+    ).then((_) => _refreshData());
   }
 
   void _showLogoutDialog(AuthProvider authProvider) {

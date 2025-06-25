@@ -10,7 +10,8 @@ import 'package:ecocycle_app/screens/history_page.dart';
 import 'package:ecocycle_app/screens/map_page.dart';
 import 'package:ecocycle_app/screens/profile_page.dart';
 import 'package:ecocycle_app/screens/scan_screen.dart';
-import 'package:ecocycle_app/utils/conversion_utils.dart';
+// FIXED: Unused import removed
+// import 'package:ecocycle_app/utils/conversion_utils.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -106,14 +107,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           children: [
             _buildHeader(),
             
-            // Wallet error banner (compact version)
             const WalletErrorBanner(),
             
             _buildWalletCard(),
             _buildQuickActions(),
             _buildFeatureGrid(),
             _buildRecentActivity(),
-            const SizedBox(height: 100), // Bottom padding for navigation
+            const SizedBox(height: 100),
           ],
         ),
       ),
@@ -124,7 +124,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     return Consumer<AuthProvider>(
       builder: (context, authProvider, child) {
         final user = authProvider.user;
-        final userName = user?['name'] ?? user?['full_name'] ?? 'Pengguna';
+        // FIXED: Accessing name via property
+        final userName = user?.name ?? 'Pengguna';
         
         return Container(
           padding: const EdgeInsets.fromLTRB(20, 60, 20, 20),
@@ -139,7 +140,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             children: [
               CircleAvatar(
                 radius: 25,
-                backgroundColor: Colors.white.withValues(alpha: 0.2),
+                backgroundColor: Colors.white.withOpacity(0.2),
                 child: Text(
                   userName.isNotEmpty ? userName[0].toUpperCase() : 'U',
                   style: const TextStyle(
@@ -224,7 +225,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       icon: Icons.add_circle_outline,
                       label: 'Top Up',
                       onTap: () => _navigateToTopUp(context),
-                      isEnabled: true, // Always enabled
+                      isEnabled: true,
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -254,13 +255,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 ],
               ),
               
-              // Show wallet error info if needed
               if (authProvider.hasWalletError) ...[
                 const SizedBox(height: 16),
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: Colors.orange[900]?.withValues(alpha: 0.3),
+                    color: Colors.orange[900]?.withOpacity(0.3),
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(color: Colors.orange[700]!),
                   ),
@@ -307,7 +307,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         decoration: BoxDecoration(
           color: isEnabled 
               ? const Color(0xFF2A2A2A) 
-              : Colors.grey[800]?.withValues(alpha: 0.5),
+              : Colors.grey[800]?.withOpacity(0.5),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: isEnabled 
@@ -419,7 +419,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.2),
+                color: color.withOpacity(0.2),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Icon(
@@ -491,7 +491,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           ),
           const SizedBox(height: 16),
           
-          // Placeholder for recent activities
           Consumer<AuthProvider>(
             builder: (context, authProvider, child) {
               if (authProvider.hasWalletError) {
@@ -561,7 +560,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.2),
+            color: color.withOpacity(0.2),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Icon(
@@ -656,7 +655,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
-  // Navigation methods
   void _navigateToTopUp(BuildContext context) async {
     final result = await Navigator.push(
       context,

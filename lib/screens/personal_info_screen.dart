@@ -8,7 +8,6 @@ class PersonalInfoScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Ambil data user dari provider untuk ditampilkan
     final user = Provider.of<AuthProvider>(context).user;
 
     return Scaffold(
@@ -23,14 +22,14 @@ class PersonalInfoScreen extends StatelessWidget {
         child: Card(
           color: Colors.grey[800],
           child: Column(
-            mainAxisSize: MainAxisSize.min, // Agar card tidak memenuhi layar
+            mainAxisSize: MainAxisSize.min,
             children: [
               ListTile(
                 leading: const Icon(Icons.person, color: Colors.white70),
                 title: const Text('Nama', style: TextStyle(color: Colors.white70)),
-                // FIXED: Access Map data correctly
+                // FIXED: Access property via dot notation
                 subtitle: Text(
-                  user?['name'] ?? 'Tidak ada data', 
+                  user?.name ?? 'Tidak ada data', 
                   style: const TextStyle(color: Colors.white, fontSize: 18)
                 ),
               ),
@@ -38,9 +37,9 @@ class PersonalInfoScreen extends StatelessWidget {
               ListTile(
                 leading: const Icon(Icons.email, color: Colors.white70),
                 title: const Text('Email', style: TextStyle(color: Colors.white70)),
-                // FIXED: Access Map data correctly
+                // FIXED: Access property via dot notation
                 subtitle: Text(
-                  user?['email'] ?? 'Tidak ada data', 
+                  user?.email ?? 'Tidak ada data', 
                   style: const TextStyle(color: Colors.white, fontSize: 18)
                 ),
               ),

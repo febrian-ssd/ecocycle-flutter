@@ -213,13 +213,13 @@ class ApiService {
   }
 
   // FIXED: UPDATE PROFILE METHOD
-  Future<Map<String, dynamic>> updateProfile(String token, Map<String, String> userData) async {
+  Future<Map<String, dynamic>> updateProfile(String token, Map<String, String> userData, {String? endpoint}) async {
     debugPrint('📝 Updating user profile');
     
     try {
       final response = await _makeRequest(
         'PUT',
-        '/profile',
+        endpoint ?? '/profile',
         headers: _getHeaders(token: token),
         body: userData,
       );
@@ -233,13 +233,13 @@ class ApiService {
   }
 
   // Enhanced wallet method with fallback behavior
-  Future<Map<String, dynamic>> getWallet(String token) async {
+  Future<Map<String, dynamic>> getWallet(String token, {String? endpoint}) async {
     debugPrint('💰 Getting wallet data');
     
     try {
       final response = await _makeRequest(
         'GET',
-        '/wallet',
+        endpoint ?? '/wallet',
         headers: _getHeaders(token: token),
       );
       
@@ -617,5 +617,9 @@ class ApiService {
       debugPrint('❌ Waste deposit submission failed: $e');
       rethrow;
     }
+  }
+
+  Future<Map<String, dynamic>> checkToken(String token) async {
+    return await _makeRequest('GET', '/check-token', headers: _getHeaders(token: token));
   }
 }

@@ -26,8 +26,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> with TickerProvid
     super.initState();
     _initAnimations();
     final user = Provider.of<AuthProvider>(context, listen: false).user;
-    _nameController = TextEditingController(text: user?['name'] ?? '');
-    _emailController = TextEditingController(text: user?['email'] ?? '');
+    // FIXED: Access properties via dot notation
+    _nameController = TextEditingController(text: user?.name ?? '');
+    _emailController = TextEditingController(text: user?.email ?? '');
   }
 
   void _initAnimations() {
@@ -90,13 +91,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> with TickerProvid
     try {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       
-      // FIXED: Correct updateProfile method call
       final userData = <String, String>{
         'name': _nameController.text.trim(),
         'email': _emailController.text.trim(),
       };
       
-      // Add password fields if they're filled
       if (_passwordController.text.isNotEmpty) {
         userData['password'] = _passwordController.text;
         userData['password_confirmation'] = _confirmPasswordController.text;
@@ -162,13 +161,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> with TickerProvid
           padding: const EdgeInsets.all(24.0),
           child: Column(
             children: [
-              // Profile Avatar Section
               Container(
                 padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
                   color: const Color(0xFF2A2A2A),
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: const Color(0xFF4CAF50).withValues(alpha: 0.3)),
+                  border: Border.all(color: const Color(0xFF4CAF50).withOpacity(0.3)),
                 ),
                 child: Column(
                   children: [
@@ -201,7 +199,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> with TickerProvid
               
               const SizedBox(height: 24),
               
-              // Form Fields
               _buildTextField(
                 label: 'Nama Lengkap', 
                 controller: _nameController, 
@@ -254,7 +251,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> with TickerProvid
               ),
               const SizedBox(height: 40),
               
-              // Save Button
               SizedBox(
                 width: double.infinity,
                 height: 56,

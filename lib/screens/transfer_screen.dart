@@ -5,7 +5,8 @@ import 'package:ecocycle_app/providers/auth_provider.dart';
 import 'package:ecocycle_app/services/api_service.dart';
 import 'package:ecocycle_app/utils/conversion_utils.dart';
 import 'package:ecocycle_app/screens/transaksi_berhasil_screen.dart';
-import 'package:ecocycle_app/widgets/wallet_error_widget.dart';
+// FIXED: Unused import removed
+// import 'package:ecocycle_app/widgets/wallet_error_widget.dart';
 
 class TransferScreen extends StatefulWidget {
   const TransferScreen({super.key});
@@ -93,77 +94,42 @@ class _TransferScreenState extends State<TransferScreen> with TickerProviderStat
 
       debugPrint('🔄 Starting transfer process...');
       
-      try {
-        // Attempt the transfer
-        await _apiService.transfer(
-          token,
-          email: _emailController.text.trim(),
-          amount: amount,
-          description: _descriptionController.text.trim(),
-        );
+      await _apiService.transfer(
+        token,
+        email: _emailController.text.trim(),
+        amount: amount,
+        description: _descriptionController.text.trim(),
+      );
 
-        debugPrint('✅ Transfer successful');
-        
-        // Refresh user data after successful transfer
-        await Future.delayed(const Duration(seconds: 1));
-        await authProvider.refreshAllData();
-        
-        if (mounted) {
-          // Navigate to success screen
-          Navigator.pushReplacement(
-            context,
-            PageRouteBuilder(
-              pageBuilder: (context, animation, secondaryAnimation) => 
-                  TransferBerhasilScreen(
-                    amount: amount,
-                    recipientEmail: _emailController.text.trim(),
-                  ),
-              transitionsBuilder: (context, animation, secondaryAnimation, child) {
-                return SlideTransition(
-                  position: Tween<Offset>(
-                    begin: const Offset(1.0, 0.0),
-                    end: Offset.zero,
-                  ).animate(animation),
-                  child: child,
-                );
-              },
-            ),
-          ).then((_) {
-            // Return true to indicate success
-            if (mounted) {
-              Navigator.pop(context, true);
-            }
-          });
-        }
-        
-      } catch (apiError) {
-        debugPrint('❌ Transfer API error: $apiError');
-        
-        // Check if it's a server error but transfer might have succeeded
-        if (apiError.toString().contains('500') || 
-            apiError.toString().contains('502') ||
-            apiError.toString().contains('503')) {
-          
-          // Wait and refresh to check if transfer went through
-          await Future.delayed(const Duration(seconds: 2));
-          await authProvider.refreshAllData();
-          
+      debugPrint('✅ Transfer successful');
+      
+      await Future.delayed(const Duration(seconds: 1));
+      await authProvider.refreshAllData();
+      
+      if (mounted) {
+        Navigator.pushReplacement(
+          context,
+          PageRouteBuilder(
+            pageBuilder: (context, animation, secondaryAnimation) => 
+                TransferBerhasilScreen(
+                  amount: amount,
+                  recipientEmail: _emailController.text.trim(),
+                ),
+            transitionsBuilder: (context, animation, secondaryAnimation, child) {
+              return SlideTransition(
+                position: Tween<Offset>(
+                  begin: const Offset(1.0, 0.0),
+                  end: Offset.zero,
+                ).animate(animation),
+                child: child,
+              );
+            },
+          ),
+        ).then((_) {
           if (mounted) {
-            _showSnackBar(
-              'Transfer sedang diproses. Silakan cek saldo terbaru di halaman EcoPay.',
-              isError: false
-            );
-            
-            Future.delayed(const Duration(seconds: 2), () {
-              if (mounted) {
-                Navigator.pop(context, true);
-              }
-            });
+            Navigator.pop(context, true);
           }
-        } else {
-          // FIXED: Use rethrow instead of throw
-          rethrow;
-        }
+        });
       }
       
     } catch (e) {
@@ -248,16 +214,16 @@ class _TransferScreenState extends State<TransferScreen> with TickerProviderStat
       margin: const EdgeInsets.all(16),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.1),
+        color: Colors.white.withOpacity(0.1),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+        border: Border.all(color: Colors.white.withOpacity(0.2)),
       ),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.2),
+              color: Colors.white.withOpacity(0.2),
               borderRadius: BorderRadius.circular(12),
             ),
             child: const Icon(
@@ -291,7 +257,6 @@ class _TransferScreenState extends State<TransferScreen> with TickerProviderStat
               ],
             ),
           ),
-          // Add refresh button
           IconButton(
             onPressed: _loadCurrentBalance,
             icon: const Icon(
@@ -332,7 +297,6 @@ class _TransferScreenState extends State<TransferScreen> with TickerProviderStat
             ),
             const SizedBox(height: 32),
             
-            // Email Field
             const Text(
               'Email Penerima',
               style: TextStyle(
@@ -383,7 +347,6 @@ class _TransferScreenState extends State<TransferScreen> with TickerProviderStat
             ),
             const SizedBox(height: 24),
             
-            // Quick Amount Buttons
             const Text(
               'Jumlah Transfer',
               style: TextStyle(
@@ -404,7 +367,6 @@ class _TransferScreenState extends State<TransferScreen> with TickerProviderStat
             
             const SizedBox(height: 16),
             
-            // Amount Field
             TextFormField(
               controller: _amountController,
               keyboardType: TextInputType.number,
@@ -462,7 +424,6 @@ class _TransferScreenState extends State<TransferScreen> with TickerProviderStat
             ),
             const SizedBox(height: 24),
             
-            // Description Field
             const Text(
               'Catatan (Opsional)',
               style: TextStyle(
@@ -505,7 +466,6 @@ class _TransferScreenState extends State<TransferScreen> with TickerProviderStat
             ),
             const SizedBox(height: 32),
             
-            // Transfer Button
             SizedBox(
               width: double.infinity,
               height: 56,
@@ -536,37 +496,6 @@ class _TransferScreenState extends State<TransferScreen> with TickerProviderStat
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            
-            // Info Card
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: const Color(0xFF2A2A2A),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.blue[800]!),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.info_outline,
-                    color: Colors.blue[400],
-                    size: 20,
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      'Transfer akan diproses secara real-time. Pastikan email penerima sudah terdaftar di EcoCycle.',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.blue[300],
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                ],
               ),
             ),
           ],
