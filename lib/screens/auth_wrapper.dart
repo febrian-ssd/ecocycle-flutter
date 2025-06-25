@@ -1,9 +1,11 @@
-// lib/screens/auth_wrapper.dart - IMPROVED VERSION with better initialization
+v=// lib/screens/auth_wrapper.dart - PERBAIKAN UNTUK LANGSUNG KE MAPS
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:ecocycle_app/providers/auth_provider.dart';
 import 'package:ecocycle_app/screens/home_screen.dart';
 import 'package:ecocycle_app/screens/login_screen.dart';
+import 'package:ecocycle_app/screens/map_page.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class AuthWrapper extends StatefulWidget {
   const AuthWrapper({super.key});
@@ -13,6 +15,8 @@ class AuthWrapper extends StatefulWidget {
 }
 
 class _AuthWrapperState extends State<AuthWrapper> {
+  bool _shouldShowMapsFirst = true; // Flag untuk menentukan apakah harus ke maps dulu
+
   @override
   void initState() {
     super.initState();
@@ -31,6 +35,30 @@ class _AuthWrapperState extends State<AuthWrapper> {
     if (!authProvider.isInitialized) {
       await authProvider.initializeAuth();
     }
+
+    // Check user preference untuk home screen vs maps
+    await _checkUserPreference();
+  }
+
+  Future<void> _checkUserPreference() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      // Cek apakah user pernah mengatur preferensi
+      final hasSetPreference = prefs.getBool('has_set_home_preference') ?? false;
+      
+      if (!hasSetPreference) {
+        // Jika belum pernah set, default ke maps (sesuai behavior lama)
+        _shouldShowMapsFirst = true;
+      } else {
+        // Jika sudah pernah set, ikuti preferensi user
+        _shouldShowMapsFirst = prefs.getBool('show_maps_first') ?? false;
+      }
+      
+      setState(() {});
+    } catch (e) {
+      debugPrint('❌ Error checking user preference: $e');
+      _shouldShowMapsFirst = true; // Default ke maps jika error
+    }
   }
 
   @override
@@ -45,9 +73,6 @@ class _AuthWrapperState extends State<AuthWrapper> {
         debugPrint('   isAuthenticated: ${auth.isAuthenticated}');
         debugPrint('   isLoading: ${auth.isLoading}');
         debugPrint('   isInitialized: ${auth.isInitialized}');
-        debugPrint('   token: ${auth.token?.substring(0, 10) ?? 'null'}...');
-        // FIXED: Accessing user as an object, not a map
-        debugPrint('   user: ${auth.user?.toString() ?? 'null'}');
 
         // Show loading screen while initializing or processing
         if (auth.isLoading || !auth.isInitialized) {
@@ -93,16 +118,176 @@ class _AuthWrapperState extends State<AuthWrapper> {
           );
         }
 
-        // If authenticated, show home screen
+        // If authenticated, decide which screen to show
         if (auth.isLoggedIn && auth.isAuthenticated) {
-          debugPrint('✅ User is authenticated, showing HomeScreen');
-          return const HomeScreen();
+          debugPrint('✅ User is authenticated');
+          
+          // PERBAIKAN: Pilih screen berdasarkan preferensi
+          if (_shouldShowMapsFirst) {
+            debugPrint('🗺️ Showing MapPage first (as requested)');
+            return MapScreenWrapper(
+              onNavigateToHome: () {
+                setState(() {
+                  _shouldShowMapsFirst = false;
+                });
+                _saveUserPreference(false);
+              },
+            );
+          } else {
+            debugPrint('🏠 Showing HomeScreen');
+            return const HomeScreen();
+          }
         } else {
           debugPrint('❌ User not authenticated, showing LoginScreen');
           return const LoginScreen();
         }
       },
     );
+  }
+
+  Future<void> _saveUserPreference(bool showMapsFirst) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('show_maps_first', showMapsFirst);
+      await prefs.setBool('has_set_home_preference', true);
+    } catch (e) {
+      debugPrint('❌ Error saving user preference: $e');
+    }
+  }
+}
+
+// Wrapper untuk MapPage dengan tombol navigasi ke Home
+class MapScreenWrapper extends StatelessWidget {
+  final VoidCallback onNavigateToHome;
+
+  const MapScreenWrapper({
+    super.key,
+    required this.onNavigateToHome,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Stack(
+        children: [
+          // Map content
+          const MapPage(),
+          
+          // Floating action button untuk ke Home
+          Positioned(
+            bottom: 30,
+            right: 20,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                FloatingActionButton(
+                  heroTag: "home_nav",
+                  onPressed: onNavigateToHome,
+                  backgroundColor: const Color(0xFF4CAF50),
+                  child: const Icon(
+                    Icons.home,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.black54,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: const Text(
+                    'Home',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          
+          // Settings button untuk mengubah preferensi
+          Positioned(
+            top: 60,
+            right: 20,
+            child: SafeArea(
+              child: FloatingActionButton.small(
+                heroTag: "settings",
+                onPressed: () => _showPreferenceDialog(context),
+                backgroundColor: Colors.white.withValues(alpha: 0.9),
+                child: const Icon(
+                  Icons.settings,
+                  color: Color(0xFF4CAF50),
+                  size: 20,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showPreferenceDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF2A2A2A),
+          title: const Text(
+            'Pengaturan Tampilan',
+            style: TextStyle(color: Colors.white),
+          ),
+          content: const Text(
+            'Pilih halaman yang ingin ditampilkan setelah login:',
+            style: TextStyle(color: Colors.white70),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                _setPreference(context, true); // Maps first
+              },
+              child: const Text('Maps Dulu'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                _setPreference(context, false); // Home first
+              },
+              child: const Text('Home Dulu'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _setPreference(BuildContext context, bool showMapsFirst) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('show_maps_first', showMapsFirst);
+      await prefs.setBool('has_set_home_preference', true);
+      
+      if (!showMapsFirst) {
+        onNavigateToHome();
+      }
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            showMapsFirst 
+                ? 'Akan menampilkan Maps setelah login'
+                : 'Akan menampilkan Home setelah login',
+          ),
+          backgroundColor: const Color(0xFF4CAF50),
+        ),
+      );
+    } catch (e) {
+      debugPrint('❌ Error setting preference: $e');
+    }
   }
 }
 
@@ -123,131 +308,6 @@ class SimpleAuthWrapper extends StatelessWidget {
           return const LoginScreen();
         }
       },
-    );
-  }
-}
-
-// Debug screen to manually test authentication state
-class AuthDebugScreen extends StatelessWidget {
-  const AuthDebugScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Auth Debug'),
-        backgroundColor: const Color(0xFF4CAF50),
-      ),
-      backgroundColor: const Color(0xFF121212),
-      body: Consumer<AuthProvider>(
-        builder: (context, auth, _) {
-          return Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Authentication Debug Info',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 20),
-                
-                _buildDebugRow('isLoggedIn', auth.isLoggedIn.toString()),
-                _buildDebugRow('isAuthenticated', auth.isAuthenticated.toString()),
-                _buildDebugRow('isLoading', auth.isLoading.toString()),
-                _buildDebugRow('isInitialized', auth.isInitialized.toString()),
-                _buildDebugRow('token', auth.token?.substring(0, 20) ?? 'null'),
-                _buildDebugRow('user', auth.user?.toString() ?? 'null'),
-                
-                const SizedBox(height: 30),
-                
-                // Action buttons
-                Wrap(
-                  spacing: 12,
-                  runSpacing: 12,
-                  children: [
-                    ElevatedButton(
-                      onPressed: () {
-                        // FIXED: Method is available in the updated AuthProvider
-                        auth.debugCurrentState();
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF4CAF50),
-                      ),
-                      child: const Text('Print Debug Info'),
-                    ),
-                    
-                    ElevatedButton(
-                      onPressed: () async {
-                        await auth.initializeAuth();
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue,
-                      ),
-                      child: const Text('Re-initialize Auth'),
-                    ),
-                    
-                    ElevatedButton(
-                      onPressed: () {
-                        Navigator.of(context).pushReplacement(
-                          MaterialPageRoute(builder: (context) => const HomeScreen()),
-                        );
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.orange,
-                      ),
-                      child: const Text('Force Navigate to Home'),
-                    ),
-                    
-                    ElevatedButton(
-                      onPressed: () {
-                        auth.logout();
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.red,
-                      ),
-                      child: const Text('Logout'),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildDebugRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 120,
-            child: Text(
-              '$label:',
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-          Expanded(
-            child: Text(
-              value,
-              style: const TextStyle(
-                color: Colors.white70,
-              ),
-            ),
-          ),
-        ],
-      ),
     );
   }
 }
