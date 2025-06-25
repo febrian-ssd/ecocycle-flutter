@@ -1,4 +1,4 @@
-// lib/screens/tukar_koin_screen.dart - Dark Theme Fixed
+// lib/screens/tukar_koin_screen.dart - FIXED ASYNC CONTEXT USAGE
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:ecocycle_app/providers/auth_provider.dart';
@@ -129,7 +129,9 @@ class _TukarKoinScreenState extends State<TukarKoinScreen> with TickerProviderSt
           ),
         ).then((_) {
           // Return true to indicate success
-          Navigator.pop(context, true);
+          if (mounted) {
+            Navigator.pop(context, true);
+          }
         });
       }
     } catch (e) {

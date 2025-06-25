@@ -1,4 +1,4 @@
-// lib/screens/isi_saldo_screen.dart - COMPLETE FIXED VERSION
+// lib/screens/isi_saldo_screen.dart - FINAL FIXED VERSION (ALL ISSUES RESOLVED)
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:ecocycle_app/providers/auth_provider.dart';
@@ -112,6 +112,7 @@ class _IsiSaldoScreenState extends State<IsiSaldoScreen> with TickerProviderStat
 
       debugPrint('✅ Topup request successful: $result');
 
+      // FIXED: Check if context is still mounted before using it
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -279,53 +280,6 @@ class _IsiSaldoScreenState extends State<IsiSaldoScreen> with TickerProviderStat
     _amountController.text = amount.toString();
   }
 
-  void _showServerInfo() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF2A2A2A),
-        title: const Text(
-          'Server Information',
-          style: TextStyle(color: Colors.white),
-        ),
-        content: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _buildInfoRow('Primary URL', 'https://ecocycle.my.id/api'),
-              _buildInfoRow('Fallback URL', 'http://ecocycle.my.id/api'),
-              _buildInfoRow('Local URL', 'http://192.168.1.100:8000/api'),
-              const SizedBox(height: 16),
-              Text(
-                'Expected Endpoints:',
-                style: TextStyle(
-                  color: Colors.blue[300],
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                '• POST /api/topup-request\n'
-                '• POST /api/topup\n'
-                '• POST /api/wallet/topup\n'
-                '• GET /api/wallet\n'
-                '• POST /api/login',
-                style: TextStyle(color: Colors.white70),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildInfoRow(String label, String value) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
@@ -349,75 +303,6 @@ class _IsiSaldoScreenState extends State<IsiSaldoScreen> with TickerProviderStat
                 color: Colors.white,
               ),
             ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDebugSection() {
-    return Container(
-      margin: const EdgeInsets.only(top: 16),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFF2A2A2A),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.orange[800]!),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(
-                Icons.bug_report,
-                color: Colors.orange[400],
-                size: 20,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                'Debug Tools',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.orange[300],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: ElevatedButton.icon(
-                  onPressed: _debugApiConnection,
-                  icon: const Icon(Icons.network_check, size: 16),
-                  label: const Text('Test API'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.orange[700],
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: ElevatedButton.icon(
-                  onPressed: _showServerInfo,
-                  icon: const Icon(Icons.info, size: 16),
-                  label: const Text('Server Info'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue[700],
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                ),
-              ),
-            ],
           ),
         ],
       ),
@@ -712,9 +597,6 @@ class _IsiSaldoScreenState extends State<IsiSaldoScreen> with TickerProviderStat
                 ],
               ),
             ),
-            
-            // Debug section (optional, uncomment if needed)
-            // _buildDebugSection(),
           ],
         ),
       ),

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:ecocycle_app/providers/auth_provider.dart';
 import 'package:ecocycle_app/screens/auth_wrapper.dart';
+import 'package:ecocycle_app/widgets/wallet_error_widget.dart';
 
 void main() {
   runApp(const MyApp());
@@ -23,7 +24,7 @@ class MyApp extends StatelessWidget {
         return authProvider;
       },
       child: MaterialApp(
-        title: 'EcoCycle',
+        title: 'Eco Cycle',
         theme: ThemeData(
           brightness: Brightness.dark,
           primarySwatch: Colors.green,

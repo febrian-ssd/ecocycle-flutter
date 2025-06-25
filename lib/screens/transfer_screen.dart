@@ -1,10 +1,11 @@
-// lib/screens/transfer_screen.dart - IMPROVED VERSION
+// lib/screens/transfer_screen.dart - COMPLETELY FIXED VERSION
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:ecocycle_app/providers/auth_provider.dart';
 import 'package:ecocycle_app/services/api_service.dart';
 import 'package:ecocycle_app/utils/conversion_utils.dart';
 import 'package:ecocycle_app/screens/transaksi_berhasil_screen.dart';
+import 'package:ecocycle_app/widgets/wallet_error_widget.dart';
 
 class TransferScreen extends StatefulWidget {
   const TransferScreen({super.key});
@@ -129,7 +130,9 @@ class _TransferScreenState extends State<TransferScreen> with TickerProviderStat
             ),
           ).then((_) {
             // Return true to indicate success
-            Navigator.pop(context, true);
+            if (mounted) {
+              Navigator.pop(context, true);
+            }
           });
         }
         
@@ -158,7 +161,8 @@ class _TransferScreenState extends State<TransferScreen> with TickerProviderStat
             });
           }
         } else {
-          throw apiError; // Re-throw for other errors
+          // FIXED: Use rethrow instead of throw
+          rethrow;
         }
       }
       
