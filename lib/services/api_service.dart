@@ -7,7 +7,7 @@ import 'package:ecocycle_app/models/transaction.dart';
 
 class ApiService {
   // FIXED: Perbaiki typo URL
-  static const String baseUrl = 'https://ecocylce.my.id/api'; // ✅ Fixed typo
+  static const String baseUrl = 'https://ecocycle.my.id/api'; // ✅ Fixed typo
   static const Duration timeoutDuration = Duration(seconds: 30);
 
   Map<String, String> _getHeaders({String? token}) {
@@ -347,15 +347,15 @@ class ApiService {
       headers: _getHeaders(token: token),
     );
     
-    // FIXED: Handle both array and object response
+    // FIXED: Handle both array and object response with proper casting
     if (response is List) {
-      return response.cast<Map<String, dynamic>>();
+      return response.map((item) => Map<String, dynamic>.from(item as Map)).toList();
     } else if (response['data'] != null) {
       List<dynamic> dropboxData = response['data'];
-      return dropboxData.cast<Map<String, dynamic>>();
+      return dropboxData.map((item) => Map<String, dynamic>.from(item as Map)).toList();
     } else {
       List<dynamic> dropboxData = response['dropboxes'] ?? [];
-      return dropboxData.cast<Map<String, dynamic>>();
+      return dropboxData.map((item) => Map<String, dynamic>.from(item as Map)).toList();
     }
   }
 
@@ -397,12 +397,16 @@ class ApiService {
       headers: _getHeaders(token: token),
     );
     
-    // Handle both direct array response and wrapped response
+    // FIXED: Handle both direct array response and wrapped response with proper casting
     if (response is List) {
-      return response.cast<Map<String, dynamic>>();
+      return List<Map<String, dynamic>>.from(
+        response.map((item) => Map<String, dynamic>.from(item as Map))
+      );
     } else {
       List<dynamic> historyData = response['data'] ?? response['history'] ?? [];
-      return historyData.cast<Map<String, dynamic>>();
+      return List<Map<String, dynamic>>.from(
+        historyData.map((item) => Map<String, dynamic>.from(item as Map))
+      );
     }
   }
 
