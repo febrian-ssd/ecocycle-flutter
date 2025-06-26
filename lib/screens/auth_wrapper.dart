@@ -1,4 +1,4 @@
-// lib/screens/auth_wrapper.dart - FIXED ALL SYNTAX ERRORS
+// lib/screens/auth_wrapper.dart - MAP AS DEFAULT HOME
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:ecocycle_app/providers/auth_provider.dart';
@@ -15,7 +15,8 @@ class AuthWrapper extends StatefulWidget {
 }
 
 class _AuthWrapperState extends State<AuthWrapper> {
-  bool _shouldShowMapsFirst = true;
+  bool _showMapAsHome = true; // Default: Map sebagai beranda
+  bool _hasCheckedPreference = false;
 
   @override
   void initState() {
@@ -23,36 +24,49 @@ class _AuthWrapperState extends State<AuthWrapper> {
     debugPrint('🏠 AuthWrapper initialized');
     
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _initializeAuth();
+      _initializeAuthAndPreferences();
     });
   }
 
-  Future<void> _initializeAuth() async {
-    debugPrint('🏠 AuthWrapper initializing auth...');
+  Future<void> _initializeAuthAndPreferences() async {
+    debugPrint('🏠 AuthWrapper initializing auth and preferences...');
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     
+    // Initialize auth first
     if (!authProvider.isInitialized) {
       await authProvider.initializeAuth();
     }
 
+    // Then check user preference
     await _checkUserPreference();
   }
 
   Future<void> _checkUserPreference() async {
     try {
       final prefs = await SharedPreferences.getInstance();
+      
+      // Check if user has set a preference
       final hasSetPreference = prefs.getBool('has_set_home_preference') ?? false;
       
-      if (!hasSetPreference) {
-        _shouldShowMapsFirst = true;
+      if (hasSetPreference) {
+        // Use saved preference
+        _showMapAsHome = prefs.getBool('show_map_as_home') ?? true;
       } else {
-        _shouldShowMapsFirst = prefs.getBool('show_maps_first') ?? false;
+        // Default: Map as home (sesuai permintaan)
+        _showMapAsHome = true;
       }
       
-      setState(() {});
+      setState(() {
+        _hasCheckedPreference = true;
+      });
+      
+      debugPrint('🏠 User preference checked: Map as home = $_showMapAsHome');
     } catch (e) {
       debugPrint('❌ Error checking user preference: $e');
-      _shouldShowMapsFirst = true;
+      setState(() {
+        _showMapAsHome = true; // Default fallback
+        _hasCheckedPreference = true;
+      });
     }
   }
 
@@ -63,13 +77,15 @@ class _AuthWrapperState extends State<AuthWrapper> {
     return Consumer<AuthProvider>(
       builder: (context, auth, child) {
         debugPrint('🏠 AuthWrapper Consumer builder called');
-        debugPrint('🔍 AuthProvider state in AuthWrapper:');
+        debugPrint('🔍 AuthProvider state:');
         debugPrint('   isLoggedIn: ${auth.isLoggedIn}');
         debugPrint('   isAuthenticated: ${auth.isAuthenticated}');
         debugPrint('   isLoading: ${auth.isLoading}');
         debugPrint('   isInitialized: ${auth.isInitialized}');
+        debugPrint('   isConnected: ${auth.isConnected}');
 
-        if (auth.isLoading || !auth.isInitialized) {
+        // Show loading while initializing
+        if (auth.isLoading || !auth.isInitialized || !_hasCheckedPreference) {
           debugPrint('🏠 Showing loading screen');
           return Scaffold(
             backgroundColor: const Color(0xFF121212),
@@ -77,10 +93,22 @@ class _AuthWrapperState extends State<AuthWrapper> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(
-                    Icons.eco,
-                    size: 80,
-                    color: Color(0xFF4CAF50),
+                  Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: LinearGradient(
+                        colors: [
+                          const Color(0xFF4CAF50).withOpacity(0.3),
+                          const Color(0xFF4CAF50),
+                        ],
+                      ),
+                    ),
+                    child: const Icon(
+                      Icons.eco,
+                      size: 80,
+                      color: Colors.white,
+                    ),
                   ),
                   const SizedBox(height: 24),
                   const Text(
@@ -97,9 +125,11 @@ class _AuthWrapperState extends State<AuthWrapper> {
                     strokeWidth: 3,
                   ),
                   const SizedBox(height: 16),
-                  const Text(
-                    'Loading...',
-                    style: TextStyle(
+                  Text(
+                    auth.isConnected 
+                        ? 'Menghubungkan ke server...'
+                        : 'Memeriksa koneksi...',
+                    style: const TextStyle(
                       color: Colors.white,
                       fontSize: 16,
                       fontWeight: FontWeight.w500,
@@ -111,36 +141,39 @@ class _AuthWrapperState extends State<AuthWrapper> {
           );
         }
 
-        if (auth.isLoggedIn && auth.isAuthenticated) {
-          debugPrint('✅ User is authenticated');
-          
-          if (_shouldShowMapsFirst) {
-            debugPrint('🗺️ Showing MapPage first');
-            return MapScreenWrapper(
-              onNavigateToHome: () {
-                setState(() {
-                  _shouldShowMapsFirst = false;
-                });
-                _saveUserPreference(false);
-              },
-            );
-          } else {
-            debugPrint('🏠 Showing HomeScreen');
-            return const HomeScreen();
-          }
-        } else {
+        // Show login if not authenticated
+        if (!auth.isLoggedIn || !auth.isAuthenticated) {
           debugPrint('❌ User not authenticated, showing LoginScreen');
           return const LoginScreen();
+        }
+
+        // Show Map or HomeScreen based on preference
+        debugPrint('✅ User authenticated');
+        
+        if (_showMapAsHome) {
+          debugPrint('🗺️ Showing MapPage as home');
+          return MapScreenWrapper(
+            onNavigateToApp: () {
+              setState(() {
+                _showMapAsHome = false;
+              });
+              _saveUserPreference(false);
+            },
+          );
+        } else {
+          debugPrint('🏠 Showing HomeScreen');
+          return const HomeScreen();
         }
       },
     );
   }
 
-  Future<void> _saveUserPreference(bool showMapsFirst) async {
+  Future<void> _saveUserPreference(bool showMapAsHome) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool('show_maps_first', showMapsFirst);
+      await prefs.setBool('show_map_as_home', showMapAsHome);
       await prefs.setBool('has_set_home_preference', true);
+      debugPrint('✅ User preference saved: Map as home = $showMapAsHome');
     } catch (e) {
       debugPrint('❌ Error saving user preference: $e');
     }
@@ -148,11 +181,11 @@ class _AuthWrapperState extends State<AuthWrapper> {
 }
 
 class MapScreenWrapper extends StatelessWidget {
-  final VoidCallback onNavigateToHome;
+  final VoidCallback onNavigateToApp;
 
   const MapScreenWrapper({
     super.key,
-    required this.onNavigateToHome,
+    required this.onNavigateToApp,
   });
 
   @override
@@ -160,55 +193,117 @@ class MapScreenWrapper extends StatelessWidget {
     return Scaffold(
       body: Stack(
         children: [
+          // Map as fullscreen background
           const MapPage(),
           
+          // Top overlay with app title and menu
           Positioned(
-            bottom: 30,
-            right: 20,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                FloatingActionButton(
-                  heroTag: "home_nav",
-                  onPressed: onNavigateToHome,
-                  backgroundColor: const Color(0xFF4CAF50),
-                  child: const Icon(
-                    Icons.home,
-                    color: Colors.white,
+            top: 0,
+            left: 0,
+            right: 0,
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.black.withOpacity(0.7),
+                    Colors.black.withOpacity(0.3),
+                    Colors.transparent,
+                  ],
+                ),
+              ),
+              child: SafeArea(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    children: [
+                      // App Logo and Title
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF4CAF50),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Icon(
+                          Icons.eco,
+                          color: Colors.white,
+                          size: 24,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      const Expanded(
+                        child: Text(
+                          'EcoCycle',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      // Settings button
+                      IconButton(
+                        onPressed: () => _showHomePreferenceDialog(context),
+                        icon: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Icon(
+                            Icons.settings,
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.black54,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: const Text(
-                    'Home',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 10,
-                    ),
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
           
+          // Bottom navigation overlay
           Positioned(
-            top: 60,
+            bottom: 30,
+            left: 20,
             right: 20,
-            child: SafeArea(
-              child: FloatingActionButton.small(
-                heroTag: "settings",
-                onPressed: () => _showPreferenceDialog(context),
-                backgroundColor: Colors.white.withOpacity(0.9),
-                child: const Icon(
-                  Icons.settings,
-                  color: Color(0xFF4CAF50),
-                  size: 20,
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.8),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: const Color(0xFF4CAF50).withOpacity(0.3),
                 ),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  _buildNavButton(
+                    icon: Icons.home,
+                    label: 'Home App',
+                    onTap: onNavigateToApp,
+                    isPrimary: true,
+                  ),
+                  _buildNavButton(
+                    icon: Icons.account_balance_wallet,
+                    label: 'EcoPay',
+                    onTap: () => _navigateToEcoPay(context),
+                  ),
+                  _buildNavButton(
+                    icon: Icons.qr_code_scanner,
+                    label: 'Scan',
+                    onTap: () => _navigateToScan(context),
+                  ),
+                  _buildNavButton(
+                    icon: Icons.person,
+                    label: 'Profile',
+                    onTap: () => _navigateToProfile(context),
+                  ),
+                ],
               ),
             ),
           ),
@@ -217,34 +312,82 @@ class MapScreenWrapper extends StatelessWidget {
     );
   }
 
-  void _showPreferenceDialog(BuildContext context) {
+  Widget _buildNavButton({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+    bool isPrimary = false,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+        decoration: BoxDecoration(
+          color: isPrimary 
+              ? const Color(0xFF4CAF50) 
+              : Colors.white.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              color: Colors.white,
+              size: 20,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showHomePreferenceDialog(BuildContext context) {
     showDialog(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
           backgroundColor: const Color(0xFF2A2A2A),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
           title: const Text(
-            'Pengaturan Tampilan',
-            style: TextStyle(color: Colors.white),
+            'Pengaturan Beranda',
+            style: TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+            ),
           ),
           content: const Text(
-            'Pilih halaman yang ingin ditampilkan setelah login:',
+            'Pilih tampilan yang ingin ditampilkan setelah login:',
             style: TextStyle(color: Colors.white70),
           ),
           actions: [
             TextButton(
               onPressed: () {
                 Navigator.of(context).pop();
-                _setPreference(context, true);
+                // Keep map as home (do nothing)
               },
-              child: const Text('Maps Dulu'),
+              child: const Text('Tetap Map'),
             ),
-            TextButton(
+            ElevatedButton(
               onPressed: () {
                 Navigator.of(context).pop();
                 _setPreference(context, false);
               },
-              child: const Text('Home Dulu'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF4CAF50),
+              ),
+              child: const Text('Ganti ke App'),
             ),
           ],
         );
@@ -252,22 +395,22 @@ class MapScreenWrapper extends StatelessWidget {
     );
   }
 
-  Future<void> _setPreference(BuildContext context, bool showMapsFirst) async {
+  Future<void> _setPreference(BuildContext context, bool showMapAsHome) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool('show_maps_first', showMapsFirst);
+      await prefs.setBool('show_map_as_home', showMapAsHome);
       await prefs.setBool('has_set_home_preference', true);
       
-      if (!showMapsFirst) {
-        onNavigateToHome();
+      if (!showMapAsHome) {
+        onNavigateToApp();
       }
       
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            showMapsFirst 
-                ? 'Akan menampilkan Maps setelah login'
-                : 'Akan menampilkan Home setelah login',
+            showMapAsHome 
+                ? 'Map akan ditampilkan sebagai beranda'
+                : 'App akan ditampilkan sebagai beranda',
           ),
           backgroundColor: const Color(0xFF4CAF50),
         ),
@@ -276,8 +419,88 @@ class MapScreenWrapper extends StatelessWidget {
       debugPrint('❌ Error setting preference: $e');
     }
   }
+
+  void _navigateToEcoPay(BuildContext context) {
+    // Navigate to EcoPay while keeping map in background
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) => Container(
+        height: MediaQuery.of(context).size.height * 0.9,
+        decoration: const BoxDecoration(
+          color: Color(0xFF121212),
+          borderRadius: BorderRadius.only(
+            topLeft: Radius.circular(20),
+            topRight: Radius.circular(20),
+          ),
+        ),
+        child: ClipRRect(
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(20),
+            topRight: Radius.circular(20),
+          ),
+          child: Navigator(
+            onGenerateRoute: (settings) {
+              return MaterialPageRoute(
+                builder: (context) => const Scaffold(
+                  body: Center(
+                    child: Text(
+                      'EcoPay will be imported here',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _navigateToScan(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const Scaffold(
+          body: Center(
+            child: Text(
+              'Scan Screen will be imported here',
+              style: TextStyle(color: Colors.white),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _navigateToProfile(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) => Container(
+        height: MediaQuery.of(context).size.height * 0.8,
+        decoration: const BoxDecoration(
+          color: Color(0xFF121212),
+          borderRadius: BorderRadius.only(
+            topLeft: Radius.circular(20),
+            topRight: Radius.circular(20),
+          ),
+        ),
+        child: const Center(
+          child: Text(
+            'Profile Screen will be imported here',
+            style: TextStyle(color: Colors.white),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
+// Simple fallback for emergency use
 class SimpleAuthWrapper extends StatelessWidget {
   const SimpleAuthWrapper({super.key});
 
@@ -288,7 +511,7 @@ class SimpleAuthWrapper extends StatelessWidget {
         debugPrint('🏠 SimpleAuthWrapper - isLoggedIn: ${auth.isLoggedIn}');
         
         if (auth.isLoggedIn) {
-          return const HomeScreen();
+          return const MapPage(); // Always show map in simple mode
         } else {
           return const LoginScreen();
         }

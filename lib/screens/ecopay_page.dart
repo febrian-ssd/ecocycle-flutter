@@ -1,4 +1,4 @@
-// lib/screens/ecopay_page.dart - FIXED VERSION
+// lib/screens/ecopay_page.dart - ALL BALANCE MANAGEMENT FOR LARAVEL
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:ecocycle_app/providers/auth_provider.dart';
@@ -8,7 +8,6 @@ import 'package:ecocycle_app/screens/transfer_screen.dart';
 import 'package:ecocycle_app/screens/tukar_koin_screen.dart';
 import 'package:ecocycle_app/screens/isi_saldo_screen.dart';
 import 'package:ecocycle_app/utils/conversion_utils.dart';
-import 'package:ecocycle_app/utils/auto_refresh_mixin.dart';
 
 class EcoPayPage extends StatefulWidget {
   const EcoPayPage({super.key});
@@ -17,13 +16,10 @@ class EcoPayPage extends StatefulWidget {
   State<EcoPayPage> createState() => _EcoPayPageState();
 }
 
-class _EcoPayPageState extends State<EcoPayPage> 
-    with TickerProviderStateMixin, AutoRefreshMixin {
+class _EcoPayPageState extends State<EcoPayPage> with TickerProviderStateMixin {
   final ApiService _apiService = ApiService();
   bool _isLoading = true;
-  double _balanceRp = 0.0;
-  int _balanceCoins = 0;
-  List<Transaction> _transactions = []; // FIXED: Proper type declaration
+  List<Transaction> _transactions = [];
   
   late AnimationController _fadeController;
   late AnimationController _slideController;
@@ -31,33 +27,13 @@ class _EcoPayPageState extends State<EcoPayPage>
   late Animation<Offset> _slideAnimation;
 
   @override
-  Duration get refreshInterval => const Duration(seconds: 15);
-
-  @override
-  Future<void> onAutoRefresh() async {
-    if (!mounted) return;
-    
-    try {
-      debugPrint('🔄 EcoPay auto-refresh triggered');
-      await _loadWalletData(showLoading: false);
-      await refreshAuthData();
-    } catch (e) {
-      debugPrint('❌ EcoPay auto-refresh failed: $e');
-    }
-  }
-
-  @override
   void initState() {
     super.initState();
     _initAnimations();
-    _loadWalletData();
+    _loadInitialData();
     
-    // Start auto-refresh after initial load
-    Future.delayed(const Duration(seconds: 5), () {
-      if (mounted) {
-        startAutoRefresh();
-      }
-    });
+    // Auto refresh every 30 seconds
+    _startAutoRefresh();
   }
 
   void _initAnimations() {
@@ -85,23 +61,34 @@ class _EcoPayPageState extends State<EcoPayPage>
     super.dispose();
   }
 
-  Future<void> _loadWalletData({bool showLoading = true}) async {
+  void _startAutoRefresh() {
+    Future.delayed(const Duration(seconds: 30), () {
+      if (mounted) {
+        _refreshData(showLoading: false);
+        _startAutoRefresh();
+      }
+    });
+  }
+
+  Future<void> _loadInitialData() async {
+    await _loadWalletAndTransactions(showLoading: true);
+  }
+
+  Future<void> _loadWalletAndTransactions({bool showLoading = true}) async {
     try {
-      final token = Provider.of<AuthProvider>(context, listen: false).token;
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final token = authProvider.token;
+      
       if (token != null) {
         if (showLoading) {
           setState(() => _isLoading = true);
         }
         
-        final walletData = await _apiService.getWallet(token);
-        // FIXED: Proper transaction data handling
+        // Load transactions from Laravel
         final transactions = await _apiService.getTransactions(token);
         
         if (mounted) {
           setState(() {
-            _balanceRp = ConversionUtils.toDouble(walletData['balance_rp']);
-            _balanceCoins = ConversionUtils.toInt(walletData['balance_coins']);
-            // FIXED: Assign List<Transaction> directly
             _transactions = transactions;
             _isLoading = false;
           });
@@ -113,28 +100,40 @@ class _EcoPayPageState extends State<EcoPayPage>
         }
       }
     } catch (e) {
+      debugPrint('❌ EcoPay load data failed: $e');
       if (mounted) {
         setState(() => _isLoading = false);
         if (showLoading) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                'Gagal memuat data wallet: ${e.toString()}',
-                style: const TextStyle(fontWeight: FontWeight.w600),
-              ),
-              backgroundColor: Colors.red[700],
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-          );
+          _showSnackBar('Gagal memuat data: ${e.toString()}', isError: true);
         }
       }
     }
   }
 
-  Future<void> _refreshData() async {
-    await _loadWalletData(showLoading: false);
-    await refreshAuthData();
+  Future<void> _refreshData({bool showLoading = true}) async {
+    debugPrint('🔄 EcoPay refreshing data...');
+    
+    // Refresh AuthProvider data first
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    await authProvider.refreshAllData();
+    
+    // Then load EcoPay specific data
+    await _loadWalletAndTransactions(showLoading: showLoading);
+  }
+
+  void _showSnackBar(String message, {bool isError = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          message,
+          style: const TextStyle(fontWeight: FontWeight.w600),
+        ),
+        backgroundColor: isError ? Colors.red[700] : Colors.green[700],
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
   }
 
   @override
@@ -142,7 +141,7 @@ class _EcoPayPageState extends State<EcoPayPage>
     return Scaffold(
       backgroundColor: const Color(0xFF121212),
       body: RefreshIndicator(
-        onRefresh: _refreshData,
+        onRefresh: () => _refreshData(showLoading: false),
         color: const Color(0xFF4CAF50),
         backgroundColor: const Color(0xFF2A2A2A),
         child: CustomScrollView(
@@ -163,7 +162,7 @@ class _EcoPayPageState extends State<EcoPayPage>
       flexibleSpace: FlexibleSpaceBar(
         centerTitle: true,
         title: const Text(
-          'EcoPay',
+          'EcoPay Wallet',
           style: TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.bold,
@@ -184,6 +183,31 @@ class _EcoPayPageState extends State<EcoPayPage>
           ),
         ),
       ),
+      actions: [
+        Consumer<AuthProvider>(
+          builder: (context, auth, child) {
+            return IconButton(
+              onPressed: auth.isLoading 
+                  ? null 
+                  : () => _refreshData(showLoading: false),
+              icon: auth.isLoading || auth.isRefreshing
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white70),
+                      ),
+                    )
+                  : const Icon(
+                      Icons.refresh,
+                      color: Colors.white,
+                    ),
+              tooltip: 'Refresh Data',
+            );
+          },
+        ),
+      ],
     );
   }
 
@@ -225,6 +249,8 @@ class _EcoPayPageState extends State<EcoPayPage>
                 const SizedBox(height: 24),
                 _buildActionButtons(),
                 const SizedBox(height: 24),
+                _buildConnectionStatus(),
+                const SizedBox(height: 16),
                 _buildTransactionHistory(),
               ],
             ),
@@ -235,163 +261,301 @@ class _EcoPayPageState extends State<EcoPayPage>
   }
 
   Widget _buildWalletCard() {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Color(0xFF2A2A2A),
-            Color(0xFF1A1A1A),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: const Color(0xFF4CAF50).withValues(alpha: 0.3),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.3),
-            blurRadius: 15,
-            offset: const Offset(0, 8),
+    return Consumer<AuthProvider>(
+      builder: (context, authProvider, child) {
+        final balanceRp = authProvider.balanceRp;
+        final balanceCoins = authProvider.balanceKoin;
+        final isConnected = authProvider.isConnected;
+        
+        return Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: isConnected
+                  ? [const Color(0xFF2A2A2A), const Color(0xFF1A1A1A)]
+                  : [Colors.orange[800]!, Colors.orange[900]!],
+            ),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: isConnected 
+                  ? const Color(0xFF4CAF50).withOpacity(0.3)
+                  : Colors.orange.withOpacity(0.5),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.3),
+                blurRadius: 15,
+                offset: const Offset(0, 8),
+              ),
+            ],
           ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // EcoCoins Section
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              // Header with status
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    '$_balanceCoins',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 36,
-                      fontWeight: FontWeight.bold,
-                    ),
+                  Row(
+                    children: [
+                      Icon(
+                        isConnected ? Icons.account_balance_wallet : Icons.warning_amber,
+                        color: Colors.white,
+                        size: 24,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        isConnected ? 'Saldo EcoPay' : 'Mode Offline',
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
                   ),
-                  const Text(
-                    'EcoCoins',
-                    style: TextStyle(
-                      color: Colors.grey,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: isConnected 
+                          ? Colors.green.withOpacity(0.2)
+                          : Colors.orange.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      isConnected ? 'ONLINE' : 'OFFLINE',
+                      style: TextStyle(
+                        color: isConnected ? Colors.green[300] : Colors.orange[300],
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
                 ],
               ),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF4CAF50).withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(
-                  Icons.eco,
-                  color: Color(0xFF4CAF50),
-                  size: 28,
-                ),
+              
+              const SizedBox(height: 24),
+              
+              // Rupiah Balance
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        ConversionUtils.formatCurrency(balanceRp),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 32,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const Text(
+                        'Saldo Rupiah',
+                        style: TextStyle(
+                          color: Colors.white70,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF4CAF50).withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      Icons.payments,
+                      color: Color(0xFF4CAF50),
+                      size: 28,
+                    ),
+                  ),
+                ],
               ),
+              
+              const SizedBox(height: 20),
+              const Divider(color: Color(0xFF3A3A3A)),
+              const SizedBox(height: 16),
+              
+              // EcoCoins Balance
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(
+                      Icons.eco,
+                      color: Colors.orange,
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '$balanceCoins EcoCoins',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        Text(
+                          'Senilai ${ConversionUtils.formatCurrency(balanceCoins * 10)}',
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              
+              // Connection warning
+              if (!isConnected) ...[
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.info_outline,
+                        color: Colors.white,
+                        size: 16,
+                      ),
+                      const SizedBox(width: 8),
+                      const Expanded(
+                        child: Text(
+                          'Tidak dapat terhubung ke server Laravel',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ],
           ),
-          
-          const SizedBox(height: 24),
-          const Divider(color: Color(0xFF3A3A3A)),
-          const SizedBox(height: 16),
-          
-          // Rupiah Balance Section
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF4CAF50).withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Icon(
-                  Icons.account_balance_wallet,
-                  color: Color(0xFF4CAF50),
-                  size: 20,
-                ),
-              ),
-              const SizedBox(width: 12),
-              const Text(
-                'Saldo Anda',
-                style: TextStyle(
-                  color: Colors.grey,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              color: const Color(0xFF1A1A1A),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0xFF3A3A3A)),
-            ),
-            child: Text(
-              ConversionUtils.formatCurrency(_balanceRp),
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 
   Widget _buildActionButtons() {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: const Color(0xFF2A2A2A),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFF3A3A3A)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.2),
-            blurRadius: 8,
-            offset: const Offset(0, 4),
+    return Consumer<AuthProvider>(
+      builder: (context, authProvider, child) {
+        final isConnected = authProvider.isConnected;
+        
+        return Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: const Color(0xFF2A2A2A),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFF3A3A3A)),
           ),
-        ],
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          _buildActionButton(
-            icon: Icons.add_circle_outline,
-            label: 'Top Up',
-            color: const Color(0xFF4CAF50),
-            onTap: () => _navigateToTopup(),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Transaksi',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 16),
+              
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildActionButton(
+                      icon: Icons.add_circle_outline,
+                      label: 'Top Up',
+                      color: const Color(0xFF4CAF50),
+                      isEnabled: isConnected,
+                      onTap: () => _navigateToTopup(),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _buildActionButton(
+                      icon: Icons.send,
+                      label: 'Transfer',
+                      color: const Color(0xFF2196F3),
+                      isEnabled: isConnected,
+                      onTap: () => _navigateToTransfer(),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _buildActionButton(
+                      icon: Icons.swap_horiz,
+                      label: 'Tukar Koin',
+                      color: const Color(0xFFFF9800),
+                      isEnabled: isConnected,
+                      onTap: () => _navigateToTukarKoin(),
+                    ),
+                  ),
+                ],
+              ),
+              
+              if (!isConnected) ...[
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.orange[900]?.withOpacity(0.3),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.orange[700]!),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.wifi_off,
+                        color: Colors.orange[300],
+                        size: 16,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Fitur transaksi memerlukan koneksi ke server Laravel',
+                          style: TextStyle(
+                            color: Colors.orange[200],
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ],
           ),
-          _buildActionButton(
-            icon: Icons.send,
-            label: 'Transfer',
-            color: const Color(0xFF2196F3),
-            onTap: () => _navigateToTransfer(),
-          ),
-          _buildActionButton(
-            icon: Icons.swap_horiz,
-            label: 'Tukar Koin',
-            color: const Color(0xFFFF9800),
-            onTap: () => _navigateToTukarKoin(),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -399,48 +563,110 @@ class _EcoPayPageState extends State<EcoPayPage>
     required IconData icon,
     required String label,
     required Color color,
+    required bool isEnabled,
     required VoidCallback onTap,
   }) {
     return GestureDetector(
-      onTap: onTap,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  color.withValues(alpha: 0.8),
-                  color,
-                ],
-              ),
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: color.withValues(alpha: 0.3),
-                  blurRadius: 8,
-                  offset: const Offset(0, 4),
+      onTap: isEnabled ? onTap : () => _showConnectionRequired(),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          gradient: isEnabled
+              ? LinearGradient(
+                  colors: [color.withOpacity(0.8), color],
+                )
+              : LinearGradient(
+                  colors: [Colors.grey[800]!, Colors.grey[700]!],
                 ),
-              ],
-            ),
-            child: Icon(
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: isEnabled
+              ? [
+                  BoxShadow(
+                    color: color.withOpacity(0.3),
+                    blurRadius: 8,
+                    offset: const Offset(0, 4),
+                  ),
+                ]
+              : null,
+        ),
+        child: Column(
+          children: [
+            Icon(
               icon,
-              color: Colors.white,
+              color: isEnabled ? Colors.white : Colors.grey[500],
               size: 24,
             ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: Colors.white,
+            const SizedBox(height: 8),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: isEnabled ? Colors.white : Colors.grey[500],
+              ),
+              textAlign: TextAlign.center,
             ),
-          ),
-        ],
+          ],
+        ),
       ),
+    );
+  }
+
+  Widget _buildConnectionStatus() {
+    return Consumer<AuthProvider>(
+      builder: (context, authProvider, child) {
+        if (authProvider.isConnected) return const SizedBox.shrink();
+        
+        return Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.orange[900]?.withOpacity(0.2),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.orange[700]!),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                Icons.warning_amber,
+                color: Colors.orange[300],
+                size: 24,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Koneksi Laravel Terputus',
+                      style: TextStyle(
+                        color: Colors.orange[200],
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Beberapa fitur mungkin tidak tersedia. Coba refresh untuk menyambung kembali.',
+                      style: TextStyle(
+                        color: Colors.orange[300],
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              TextButton(
+                onPressed: () => authProvider.retryConnection(),
+                style: TextButton.styleFrom(
+                  foregroundColor: Colors.orange[200],
+                ),
+                child: const Text('Retry'),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -450,13 +676,6 @@ class _EcoPayPageState extends State<EcoPayPage>
         color: const Color(0xFF2A2A2A),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFF3A3A3A)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.2),
-            blurRadius: 8,
-            offset: const Offset(0, 4),
-          ),
-        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -519,12 +738,13 @@ class _EcoPayPageState extends State<EcoPayPage>
           ),
           const SizedBox(height: 8),
           Text(
-            'Transaksi Anda akan muncul di sini',
+            'Transaksi Anda akan muncul di sini setelah melakukan aktivitas',
             style: TextStyle(
               fontSize: 14,
               color: Colors.grey[500],
               fontWeight: FontWeight.w500,
             ),
+            textAlign: TextAlign.center,
           ),
         ],
       ),
@@ -532,7 +752,7 @@ class _EcoPayPageState extends State<EcoPayPage>
   }
 
   Widget _buildTransactionList() {
-    final recentTransactions = _transactions.take(5).toList();
+    final recentTransactions = _transactions.take(10).toList();
     
     return ListView.separated(
       shrinkWrap: true,
@@ -578,7 +798,7 @@ class _EcoPayPageState extends State<EcoPayPage>
       leading: Container(
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.1),
+          color: color.withOpacity(0.1),
           borderRadius: BorderRadius.circular(10),
         ),
         child: Icon(
@@ -649,69 +869,40 @@ class _EcoPayPageState extends State<EcoPayPage>
     );
   }
 
+  void _showConnectionRequired() {
+    _showSnackBar('Fitur memerlukan koneksi ke server Laravel', isError: true);
+  }
+
   void _navigateToTopup() async {
     final result = await Navigator.push(
       context,
-      PageRouteBuilder(
-        pageBuilder: (context, animation, secondaryAnimation) => const IsiSaldoScreen(),
-        transitionsBuilder: (context, animation, secondaryAnimation, child) {
-          return SlideTransition(
-            position: Tween<Offset>(
-              begin: const Offset(1.0, 0.0),
-              end: Offset.zero,
-            ).animate(animation),
-            child: child,
-          );
-        },
-      ),
+      MaterialPageRoute(builder: (context) => const IsiSaldoScreen()),
     );
     
     if (result == true) {
-      _refreshData();
+      _refreshData(showLoading: false);
     }
   }
 
   void _navigateToTransfer() async {
     final result = await Navigator.push(
       context,
-      PageRouteBuilder(
-        pageBuilder: (context, animation, secondaryAnimation) => const TransferScreen(),
-        transitionsBuilder: (context, animation, secondaryAnimation, child) {
-          return SlideTransition(
-            position: Tween<Offset>(
-              begin: const Offset(1.0, 0.0),
-              end: Offset.zero,
-            ).animate(animation),
-            child: child,
-          );
-        },
-      ),
+      MaterialPageRoute(builder: (context) => const TransferScreen()),
     );
     
     if (result == true) {
-      _refreshData();
+      _refreshData(showLoading: false);
     }
   }
 
   void _navigateToTukarKoin() async {
     final result = await Navigator.push(
       context,
-      PageRouteBuilder(
-        pageBuilder: (context, animation, secondaryAnimation) => const TukarKoinScreen(),
-        transitionsBuilder: (context, animation, secondaryAnimation, child) {
-          return SlideTransition(
-            position: Tween<Offset>(
-              begin: const Offset(1.0, 0.0),
-              end: Offset.zero,
-            ).animate(animation),
-            child: child,
-          );
-        },
-      ),
+      MaterialPageRoute(builder: (context) => const TukarKoinScreen()),
     );
     
     if (result == true) {
-      _refreshData();
+      _refreshData(showLoading: false);
     }
   }
 }

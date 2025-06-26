@@ -1,4 +1,4 @@
-// lib/providers/auth_provider.dart - FIXED UNUSED ELEMENT WARNING
+// lib/providers/auth_provider.dart - RESTORED LARAVEL CONNECTIVITY
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:ecocycle_app/services/api_service.dart';
@@ -16,9 +16,8 @@ class AuthProvider extends ChangeNotifier {
   bool _isLoading = false;
   bool _isInitialized = false;
   String? _errorMessage;
-  bool _hasWalletError = false;
   
-  // Connection status tracking
+  // Laravel connection status
   bool _isConnected = true;
   bool _isRefreshing = false;
   
@@ -32,7 +31,6 @@ class AuthProvider extends ChangeNotifier {
   bool get isLoggedIn => _token != null && _user != null;
   bool get isAuthenticated => isLoggedIn;
   String? get errorMessage => _errorMessage;
-  bool get hasWalletError => _hasWalletError;
   bool get isConnected => _isConnected;
   bool get isRefreshing => _isRefreshing;
   
@@ -42,25 +40,21 @@ class AuthProvider extends ChangeNotifier {
   String get userRole => _user?.role ?? 'unknown';
   String get userRoleDisplay => _user?.roleDisplay ?? 'Unknown';
   
-  // Balance getters with fallback values
+  // Balance getters - directly from Laravel
   double get balanceRp {
-    if (_wallet == null || _hasWalletError) {
-      return 100000.0; // Demo balance
-    }
+    if (_wallet == null) return 0.0;
     
     final data = _wallet!['data'] ?? _wallet!;
     return ConversionUtils.toDouble(
       data['balance_rp'] ?? 
       data['balance'] ?? 
       data['saldo_rp'] ?? 
-      100000.0 // Demo fallback
+      0.0
     );
   }
   
   int get balanceKoin {
-    if (_wallet == null || _hasWalletError) {
-      return 250; // Demo coins
-    }
+    if (_wallet == null) return 0;
     
     final data = _wallet!['data'] ?? _wallet!;
     return ConversionUtils.toInt(
@@ -68,9 +62,12 @@ class AuthProvider extends ChangeNotifier {
       data['balance_coins'] ??
       data['coins'] ?? 
       data['koin'] ?? 
-      250 // Demo fallback
+      0
     );
   }
+
+  // Laravel connection status
+  bool get hasWalletError => !_isConnected;
 
   // Permission checking
   bool hasPermission(String permission) {
@@ -90,77 +87,43 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<void> _initializeAuth() async {
-    debugPrint('🔄 AuthProvider._initializeAuth() START');
+    debugPrint('🔄 AuthProvider initializing for Laravel...');
     
     try {
-      _isConnected = await _checkConnection();
+      _isConnected = await _apiService.testConnection();
+      debugPrint('🔍 Laravel connection status: $_isConnected');
       
       final prefs = await SharedPreferences.getInstance();
       final savedToken = prefs.getString('auth_token');
       
       if (savedToken != null) {
-        debugPrint('🔍 Found saved token, attempting to restore session');
+        debugPrint('🔍 Found saved token, restoring Laravel session');
         _token = savedToken;
         
-        try {
-          await _verifyToken();
-          await _loadUserData();
-          debugPrint('✅ Session restored successfully');
-        } catch (e) {
-          debugPrint('❌ Failed to restore session: $e');
-          _setOfflineMode();
+        if (_isConnected) {
+          try {
+            await _verifyTokenWithLaravel();
+            await _loadUserDataFromLaravel();
+            debugPrint('✅ Laravel session restored successfully');
+          } catch (e) {
+            debugPrint('❌ Laravel session restore failed: $e');
+            await _clearLocalData();
+          }
+        } else {
+          debugPrint('📴 Laravel offline, clearing session');
+          await _clearLocalData();
         }
       } else {
-        debugPrint('ℹ️ No saved auth data found');
+        debugPrint('ℹ️ No saved Laravel session found');
       }
     } catch (e) {
-      debugPrint('❌ Error initializing auth: $e');
-      _setOfflineMode();
+      debugPrint('❌ Laravel initialization error: $e');
+      _isConnected = false;
     } finally {
       _isInitialized = true;
-      debugPrint('✅ AuthProvider initialization complete');
+      debugPrint('✅ Laravel AuthProvider initialization complete');
       notifyListeners();
     }
-  }
-
-  Future<bool> _checkConnection() async {
-    try {
-      final result = await _apiService.testConnection();
-      return result;
-    } catch (e) {
-      debugPrint('⚠️ Connection check failed: $e');
-      return false;
-    }
-  }
-
-  void _setOfflineMode() {
-    debugPrint('📴 Setting offline mode with demo data');
-    _isConnected = false;
-    _hasWalletError = true;
-    
-    if (_token != null && _user == null) {
-      _user = User(
-        id: 999,
-        name: 'Demo User',
-        email: 'demo@ecocycle.com',
-        role: 'user',
-        balanceRp: 100000.0,
-        balanceCoins: 250,
-      );
-    }
-    
-    _wallet = {
-      'success': false,
-      'message': 'Demo mode - Wallet service under development',
-      'data': {
-        'balance_rp': 100000.0,
-        'balance_koin': 250,
-        'balance_coins': 250,
-      },
-      'balance_rp': 100000.0,
-      'balance_koin': 250,
-      'balance_coins': 250,
-    };
   }
 
   Future<void> initializeAuth() async {
@@ -168,21 +131,24 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<void> login(String email, String password) async {
-    debugPrint('🔐 AuthProvider.login() START for: $email');
+    debugPrint('🔐 Laravel login START for: $email');
     _setLoading(true);
     _errorMessage = null;
     
     try {
-      _isConnected = await _checkConnection();
+      _isConnected = await _apiService.testConnection();
+      if (!_isConnected) {
+        throw Exception('Tidak dapat terhubung ke server. Periksa koneksi internet Anda.');
+      }
       
       final response = await _apiService.login(email, password);
       
-      if (response['success'] != true) {
-        throw Exception(response['message'] ?? 'Login failed');
+      if (response['success'] != true && response['data'] == null) {
+        throw Exception(response['message'] ?? 'Login gagal');
       }
       
-      final data = response['data'];
-      _token = data['access_token'];
+      final data = response['data'] ?? response;
+      _token = data['access_token'] ?? data['token'];
       _abilities = List<String>.from(data['abilities'] ?? []);
       
       if (_token == null) {
@@ -192,22 +158,15 @@ class AuthProvider extends ChangeNotifier {
       final userData = data['user'];
       _user = User.fromJson(userData);
       
-      debugPrint('✅ Login successful, role: ${_user?.role}');
+      debugPrint('✅ Laravel login successful, role: ${_user?.role}');
       
-      await _loadWalletDataSafely();
+      await _loadWalletFromLaravel();
       await _saveToLocalStorage();
       
     } catch (e) {
-      debugPrint('❌ Login failed: $e');
+      debugPrint('❌ Laravel login failed: $e');
       _errorMessage = e.toString().replaceFirst('Exception: ', '');
-      
-      if (e.toString().contains('internet') || e.toString().contains('timeout')) {
-        _setOfflineMode();
-        _errorMessage = 'Koneksi bermasalah. Mencoba mode offline...';
-      } else {
-        await _clearLocalData();
-      }
-      
+      await _clearLocalData();
       rethrow;
     } finally {
       _setLoading(false);
@@ -215,21 +174,24 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<void> register(Map<String, String> userData) async {
-    debugPrint('👤 AuthProvider.register() START');
+    debugPrint('👤 Laravel register START');
     _setLoading(true);
     _errorMessage = null;
     
     try {
-      _isConnected = await _checkConnection();
+      _isConnected = await _apiService.testConnection();
+      if (!_isConnected) {
+        throw Exception('Tidak dapat terhubung ke server. Periksa koneksi internet Anda.');
+      }
       
       final response = await _apiService.register(userData);
       
-      if (response['success'] != true) {
-        throw Exception(response['message'] ?? 'Registration failed');
+      if (response['success'] != true && response['data'] == null) {
+        throw Exception(response['message'] ?? 'Registrasi gagal');
       }
       
-      final data = response['data'];
-      _token = data['access_token'];
+      final data = response['data'] ?? response;
+      _token = data['access_token'] ?? data['token'];
       _abilities = List<String>.from(data['abilities'] ?? []);
       
       if (_token == null) {
@@ -239,13 +201,13 @@ class AuthProvider extends ChangeNotifier {
       final userDataResponse = data['user'];
       _user = User.fromJson(userDataResponse);
       
-      debugPrint('✅ Registration successful, role: ${_user?.role}');
+      debugPrint('✅ Laravel registration successful, role: ${_user?.role}');
       
-      await _loadWalletDataSafely();
+      await _loadWalletFromLaravel();
       await _saveToLocalStorage();
       
     } catch (e) {
-      debugPrint('❌ Registration failed: $e');
+      debugPrint('❌ Laravel registration failed: $e');
       _errorMessage = e.toString().replaceFirst('Exception: ', '');
       await _clearLocalData();
       rethrow;
@@ -255,126 +217,102 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<void> logout() async {
-    debugPrint('🔄 AuthProvider.logout() START');
+    debugPrint('🔄 Laravel logout START');
     _setLoading(true);
     
     try {
       if (_token != null && _isConnected) {
         try {
           await _apiService.logout(_token!);
-          debugPrint('✅ Server logout successful');
+          debugPrint('✅ Laravel logout successful');
         } catch (e) {
-          debugPrint('⚠️ Server logout failed, continuing with local logout: $e');
+          debugPrint('⚠️ Laravel logout failed, continuing with local logout: $e');
         }
       }
-      
     } catch (e) {
-      debugPrint('❌ Error during logout: $e');
+      debugPrint('❌ Error during Laravel logout: $e');
     } finally {
       await _clearLocalData();
       _setLoading(false);
-      debugPrint('✅ Logout complete');
+      debugPrint('✅ Laravel logout complete');
     }
   }
 
-  Future<void> _loadUserData() async {
-    if (_token == null) return;
+  Future<void> _loadUserDataFromLaravel() async {
+    if (_token == null || !_isConnected) return;
     
-    debugPrint('👤 Loading user data...');
+    debugPrint('👤 Loading user data from Laravel...');
     
     try {
       final userResponse = await _apiService.getUser(_token!);
-      _user = User.fromJson(userResponse);
-      debugPrint('✅ User data loaded successfully, role: ${_user?.role}');
+      final userData = userResponse['data'] ?? userResponse;
+      _user = User.fromJson(userData);
+      debugPrint('✅ Laravel user data loaded, role: ${_user?.role}');
       
-      await _loadWalletDataSafely();
+      await _loadWalletFromLaravel();
       
     } catch (e) {
-      debugPrint('❌ Error loading user data: $e');
+      debugPrint('❌ Error loading Laravel user data: $e');
       
       if (e.toString().contains('401') || e.toString().contains('Unauthenticated')) {
         await _clearLocalData();
         throw Exception('Sesi Anda telah berakhir. Silakan login kembali.');
       }
-      
-      _setOfflineMode();
+      rethrow;
     }
   }
 
-  Future<void> _loadWalletDataSafely() async {
-    if (_token == null) return;
+  Future<void> _loadWalletFromLaravel() async {
+    if (_token == null || !_isConnected) return;
     
-    debugPrint('💰 Loading wallet data safely...');
-    _hasWalletError = false;
+    debugPrint('💰 Loading wallet from Laravel...');
     
     try {
-      if (!_isConnected) {
-        throw Exception('No connection');
-      }
-      
       String endpoint = isAdmin ? '/admin/wallet-overview' : '/user/wallet';
       final walletResponse = await _apiService.getWallet(_token!, endpoint: endpoint);
       
-      if (walletResponse['success'] == false) {
-        debugPrint('⚠️ Wallet service unavailable, using demo values');
-        _setDemoWalletValues();
-        _hasWalletError = true;
-      } else {
-        _wallet = walletResponse;
-        debugPrint('✅ Wallet data loaded successfully for ${_user?.roleDisplay}');
-      }
+      _wallet = walletResponse;
+      debugPrint('✅ Laravel wallet loaded for ${_user?.roleDisplay}');
       
     } catch (e) {
-      debugPrint('❌ Error loading wallet data: $e');
-      _setDemoWalletValues();
-      _hasWalletError = true;
+      debugPrint('❌ Error loading Laravel wallet: $e');
+      // Don't throw error for wallet - just log it
+      _wallet = {
+        'data': {
+          'balance_rp': 0.0,
+          'balance_coins': 0,
+        }
+      };
     }
   }
 
-  Future<void> _verifyToken() async {
-    if (_token == null) return;
+  Future<void> _verifyTokenWithLaravel() async {
+    if (_token == null || !_isConnected) return;
     
     try {
       final response = await _apiService.checkToken(_token!);
       
-      if (response['success'] != true) {
+      if (response['success'] != true && response['data'] == null) {
         throw Exception('Token invalid');
       }
       
-      final tokenData = response['data']['token'];
-      _abilities = List<String>.from(tokenData['abilities'] ?? []);
+      // Laravel might return abilities in different format
+      final userData = response['data'] ?? response;
+      if (userData['abilities'] != null) {
+        _abilities = List<String>.from(userData['abilities']);
+      }
       
-      debugPrint('✅ Token verified successfully');
+      debugPrint('✅ Laravel token verified successfully');
       
     } catch (e) {
-      debugPrint('❌ Token verification failed: $e');
-      
-      if (e.toString().contains('internet') || e.toString().contains('timeout')) {
-        _setOfflineMode();
-      } else {
-        await _clearLocalData();
-        throw Exception('Token tidak valid');
-      }
+      debugPrint('❌ Laravel token verification failed: $e');
+      await _clearLocalData();
+      throw Exception('Token tidak valid');
     }
   }
 
-  void _setDemoWalletValues() {
-    _wallet = {
-      'success': true,
-      'message': 'Demo mode - Wallet service under development',
-      'data': {
-        'balance_rp': 100000.0,
-        'balance_koin': 250,
-        'balance_coins': 250,
-      },
-      'balance_rp': 100000.0,
-      'balance_koin': 250,
-      'balance_coins': 250,
-    };
-  }
-
   Future<void> refreshAllData() async {
-    debugPrint('🔄 Refreshing all user data...');
+    debugPrint('🔄 Refreshing all Laravel data...');
     
     if (_token == null) {
       debugPrint('❌ Cannot refresh data: no token available');
@@ -385,24 +323,23 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
     
     try {
-      _isConnected = await _checkConnection();
+      _isConnected = await _apiService.testConnection();
       
       if (_isConnected) {
-        await _loadUserData();
-        debugPrint('✅ Data refresh complete');
+        await _loadUserDataFromLaravel();
+        debugPrint('✅ Laravel data refresh complete');
       } else {
-        debugPrint('⚠️ Offline mode - keeping existing data');
-        _setOfflineMode();
+        debugPrint('⚠️ Laravel offline - keeping existing data');
+        _isConnected = false;
       }
     } catch (e) {
-      debugPrint('❌ Error refreshing data: $e');
+      debugPrint('❌ Error refreshing Laravel data: $e');
       
       if (e.toString().contains('401') || e.toString().contains('Unauthenticated')) {
         _errorMessage = 'Sesi berakhir. Silakan login kembali.';
         await logout();
       } else {
         _errorMessage = 'Gagal memuat data terbaru';
-        _setOfflineMode();
       }
     } finally {
       _isRefreshing = false;
@@ -411,7 +348,7 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<void> refreshWalletData() async {
-    debugPrint('💰 Refreshing wallet data...');
+    debugPrint('💰 Refreshing Laravel wallet data...');
     
     if (_token == null) {
       debugPrint('❌ Cannot refresh wallet: no token available');
@@ -419,10 +356,10 @@ class AuthProvider extends ChangeNotifier {
     }
     
     try {
-      await _loadWalletDataSafely();
-      debugPrint('✅ Wallet refresh complete');
+      await _loadWalletFromLaravel();
+      debugPrint('✅ Laravel wallet refresh complete');
     } catch (e) {
-      debugPrint('❌ Error refreshing wallet: $e');
+      debugPrint('❌ Error refreshing Laravel wallet: $e');
       _errorMessage = 'Gagal memuat data wallet';
     } finally {
       notifyListeners();
@@ -430,7 +367,7 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<void> updateProfile(Map<String, String> userData) async {
-    debugPrint('📝 Updating user profile...');
+    debugPrint('📝 Updating profile in Laravel...');
     _setLoading(true);
     _errorMessage = null;
     
@@ -441,12 +378,12 @@ class AuthProvider extends ChangeNotifier {
       String endpoint = isAdmin ? '/admin/profile' : '/user/profile';
       await _apiService.updateProfile(_token!, userData, endpoint: endpoint);
       
-      await _loadUserData();
+      await _loadUserDataFromLaravel();
       
-      debugPrint('✅ Profile updated successfully');
+      debugPrint('✅ Laravel profile updated successfully');
       
     } catch (e) {
-      debugPrint('❌ Profile update failed: $e');
+      debugPrint('❌ Laravel profile update failed: $e');
       _errorMessage = e.toString().replaceFirst('Exception: ', '');
       rethrow;
     } finally {
@@ -466,9 +403,9 @@ class AuthProvider extends ChangeNotifier {
         await prefs.setString('user_data', _user!.toJson().toString());
       }
       
-      debugPrint('✅ Data saved to local storage');
+      debugPrint('✅ Laravel session saved to local storage');
     } catch (e) {
-      debugPrint('❌ Error saving to local storage: $e');
+      debugPrint('❌ Error saving Laravel session: $e');
     }
   }
 
@@ -483,12 +420,11 @@ class AuthProvider extends ChangeNotifier {
       _wallet = null;
       _abilities = [];
       _errorMessage = null;
-      _hasWalletError = false;
       _isConnected = true;
       
-      debugPrint('✅ Local data cleared');
+      debugPrint('✅ Laravel session cleared');
     } catch (e) {
-      debugPrint('❌ Error clearing local data: $e');
+      debugPrint('❌ Error clearing Laravel session: $e');
     }
     notifyListeners();
   }
@@ -499,14 +435,13 @@ class AuthProvider extends ChangeNotifier {
   }
 
   void debugCurrentState() {
-    debugPrint('🔍 AuthProvider Enhanced State:');
+    debugPrint('🔍 Laravel AuthProvider State:');
     debugPrint('   isLoggedIn: $isLoggedIn');
     debugPrint('   isAuthenticated: $isAuthenticated');
     debugPrint('   isLoading: $isLoading');
     debugPrint('   isInitialized: $isInitialized');
     debugPrint('   isConnected: $isConnected');
     debugPrint('   isRefreshing: $isRefreshing');
-    debugPrint('   hasWalletError: $hasWalletError');
     debugPrint('   token: ${_token?.substring(0, 10) ?? 'null'}...');
     debugPrint('   user: ${_user?.toString() ?? 'null'}');
     debugPrint('   wallet balance_rp: $balanceRp');
@@ -515,11 +450,8 @@ class AuthProvider extends ChangeNotifier {
   }
 
   String getWalletStatusMessage() {
-    if (_hasWalletError) {
-      if (!_isConnected) {
-        return 'Mode offline aktif. Data wallet menggunakan nilai demo.';
-      }
-      return 'Layanan wallet sedang dalam pengembangan. Menggunakan data demo.';
+    if (!_isConnected) {
+      return 'Tidak dapat terhubung ke server Laravel. Periksa koneksi internet.';
     }
     return '';
   }
@@ -527,18 +459,13 @@ class AuthProvider extends ChangeNotifier {
   void setConnectionStatus(bool isConnected) {
     if (_isConnected != isConnected) {
       _isConnected = isConnected;
-      
-      if (!isConnected) {
-        _setOfflineMode();
-      }
-      
       notifyListeners();
     }
   }
 
   Future<void> retryConnection() async {
-    debugPrint('🔄 Retrying connection...');
-    _isConnected = await _checkConnection();
+    debugPrint('🔄 Retrying Laravel connection...');
+    _isConnected = await _apiService.testConnection();
     
     if (_isConnected && _token != null) {
       await refreshAllData();
