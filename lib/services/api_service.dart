@@ -6,8 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:ecocycle_app/models/transaction.dart';
 
 class ApiService {
-  // FIXED: Perbaiki typo URL
-  static const String baseUrl = 'https://ecocycle.my.id/api'; // ✅ Fixed typo
+  static const String baseUrl = 'https://ecocylce.my.id/api';
   static const Duration timeoutDuration = Duration(seconds: 30);
 
   Map<String, String> _getHeaders({String? token}) {
@@ -27,7 +26,7 @@ class ApiService {
     try {
       debugPrint('🔍 Testing Laravel connection...');
       final response = await http.get(
-        Uri.parse('$baseUrl/health'), // FIXED: Use correct health check endpoint
+        Uri.parse('$baseUrl/health'),
         headers: _getHeaders(),
       ).timeout(const Duration(seconds: 5));
       
@@ -149,10 +148,9 @@ class ApiService {
   Future<Map<String, dynamic>> login(String email, String password) async {
     debugPrint('🔐 Laravel login for: $email');
     
-    // FIXED: Use correct endpoint without duplicate /auth
     final response = await _makeRequest(
       'POST',
-      '/login', // FIXED: Changed from /auth/login
+      '/login',
       headers: _getHeaders(),
       body: {
         'email': email,
@@ -167,10 +165,9 @@ class ApiService {
   Future<Map<String, dynamic>> register(Map<String, String> userData) async {
     debugPrint('👤 Laravel registration for: ${userData['email']}');
     
-    // FIXED: Use correct endpoint
     final response = await _makeRequest(
       'POST',
-      '/register', // FIXED: Changed from /auth/register
+      '/register',
       headers: _getHeaders(),
       body: userData,
     );
@@ -185,7 +182,7 @@ class ApiService {
     try {
       await _makeRequest(
         'POST',
-        '/auth/logout', // This is correct based on your routes
+        '/auth/logout',
         headers: _getHeaders(token: token),
       );
       debugPrint('✅ Laravel logout successful');
@@ -199,7 +196,7 @@ class ApiService {
     
     final response = await _makeRequest(
       'GET', 
-      '/auth/check-token', // FIXED: Use correct endpoint
+      '/auth/check-token',
       headers: _getHeaders(token: token)
     );
     
@@ -213,7 +210,7 @@ class ApiService {
     
     final response = await _makeRequest(
       'GET',
-      '/auth/user', // This is correct
+      '/auth/user',
       headers: _getHeaders(token: token),
     );
     
@@ -226,7 +223,7 @@ class ApiService {
     
     final response = await _makeRequest(
       'PUT',
-      endpoint ?? '/user/profile', // Use custom endpoint or default
+      endpoint ?? '/user/profile',
       headers: _getHeaders(token: token),
       body: userData,
     );
@@ -241,11 +238,10 @@ class ApiService {
     
     final response = await _makeRequest(
       'GET',
-      endpoint ?? '/user/wallet', // Use custom endpoint or default
+      endpoint ?? '/user/wallet',
       headers: _getHeaders(token: token),
     );
     
-    // FIXED: Return raw response data
     return response['data'] ?? response;
   }
 
@@ -286,7 +282,7 @@ class ApiService {
       '/user/transfer',
       headers: _getHeaders(token: token),
       body: {
-        'email': email, // FIXED: Use 'email' instead of 'recipient_email'
+        'email': email,
         'amount': amount,
         if (description != null && description.isNotEmpty) 'description': description,
       },
@@ -305,12 +301,12 @@ class ApiService {
     
     final response = await _makeRequest(
       'POST',
-      '/user/topup', // FIXED: Correct endpoint
+      '/user/topup',
       headers: _getHeaders(token: token),
       body: {
         'amount': amount,
         'payment_method': method,
-        'user_note': '', // Optional
+        'user_note': '',
       },
     );
     
@@ -347,15 +343,19 @@ class ApiService {
       headers: _getHeaders(token: token),
     );
     
-    // FIXED: Handle both array and object response with proper casting
-    if (response is List) {
-      return response.map((item) => Map<String, dynamic>.from(item as Map)).toList();
-    } else if (response['data'] != null) {
+    // PERBAIKAN: Penanganan respons yang benar
+    if (response['data'] != null) {
       List<dynamic> dropboxData = response['data'];
-      return dropboxData.map((item) => Map<String, dynamic>.from(item as Map)).toList();
+      return dropboxData.map<Map<String, dynamic>>((item) => 
+        Map<String, dynamic>.from(item as Map<String, dynamic>)
+      ).toList();
+    } else if (response['dropboxes'] != null) {
+      List<dynamic> dropboxData = response['dropboxes'];
+      return dropboxData.map<Map<String, dynamic>>((item) => 
+        Map<String, dynamic>.from(item as Map<String, dynamic>)
+      ).toList();
     } else {
-      List<dynamic> dropboxData = response['dropboxes'] ?? [];
-      return dropboxData.map((item) => Map<String, dynamic>.from(item as Map)).toList();
+      return [];
     }
   }
 
@@ -369,12 +369,12 @@ class ApiService {
     
     final response = await _makeRequest(
       'POST',
-      '/user/scan/confirm', // FIXED: Correct endpoint
+      '/user/scan/confirm',
       headers: _getHeaders(token: token),
       body: {
-        'dropbox_code': dropboxCode, // FIXED: Use correct parameter name
+        'dropbox_code': dropboxCode,
         'waste_type': wasteType,
-        'weight': weight, // Weight in kg
+        'weight': weight,
       },
     );
     
@@ -397,16 +397,19 @@ class ApiService {
       headers: _getHeaders(token: token),
     );
     
-    // FIXED: Handle both direct array response and wrapped response with proper casting
-    if (response is List) {
-      return List<Map<String, dynamic>>.from(
-        response.map((item) => Map<String, dynamic>.from(item as Map))
-      );
+    // PERBAIKAN: Penanganan respons yang benar
+    if (response['data'] != null) {
+      List<dynamic> historyData = response['data'];
+      return historyData.map<Map<String, dynamic>>((item) => 
+        Map<String, dynamic>.from(item as Map<String, dynamic>)
+      ).toList();
+    } else if (response['history'] != null) {
+      List<dynamic> historyData = response['history'];
+      return historyData.map<Map<String, dynamic>>((item) => 
+        Map<String, dynamic>.from(item as Map<String, dynamic>)
+      ).toList();
     } else {
-      List<dynamic> historyData = response['data'] ?? response['history'] ?? [];
-      return List<Map<String, dynamic>>.from(
-        historyData.map((item) => Map<String, dynamic>.from(item as Map))
-      );
+      return [];
     }
   }
 
@@ -415,7 +418,7 @@ class ApiService {
     
     final response = await _makeRequest(
       'GET',
-      '/user/scan/history', // FIXED: Correct endpoint
+      '/user/scan/history',
       headers: _getHeaders(token: token),
     );
     
@@ -428,7 +431,7 @@ class ApiService {
     
     final response = await _makeRequest(
       'GET',
-      '/user/scan/stats', // FIXED: Correct endpoint
+      '/user/scan/stats',
       headers: _getHeaders(token: token),
     );
     
@@ -441,7 +444,7 @@ class ApiService {
     
     final response = await _makeRequest(
       'GET',
-      '/user/transactions', // Use same endpoint as getTransactions
+      '/user/transactions',
       headers: _getHeaders(token: token),
     );
     
