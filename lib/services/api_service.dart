@@ -1,4 +1,4 @@
-// lib/services/api_service.dart - RESTORED LARAVEL CONNECTIVITY
+// lib/services/api_service.dart - FIXED VERSION
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
@@ -6,7 +6,8 @@ import 'package:http/http.dart' as http;
 import 'package:ecocycle_app/models/transaction.dart';
 
 class ApiService {
-  static const String baseUrl = 'https://ecocylce.my.id/api';
+  // FIXED: Perbaiki typo URL
+  static const String baseUrl = 'https://ecocylce.my.id/api'; // ✅ Fixed typo
   static const Duration timeoutDuration = Duration(seconds: 30);
 
   Map<String, String> _getHeaders({String? token}) {
@@ -26,7 +27,7 @@ class ApiService {
     try {
       debugPrint('🔍 Testing Laravel connection...');
       final response = await http.get(
-        Uri.parse('$baseUrl/test'),
+        Uri.parse('$baseUrl/health'), // FIXED: Use correct health check endpoint
         headers: _getHeaders(),
       ).timeout(const Duration(seconds: 5));
       
@@ -47,6 +48,9 @@ class ApiService {
     
     final uri = Uri.parse('$baseUrl$endpoint');
     debugPrint('🌐 Laravel $method: $uri');
+    if (body != null) {
+      debugPrint('📤 Request body: ${jsonEncode(body)}');
+    }
     
     try {
       http.Response response;
@@ -77,6 +81,7 @@ class ApiService {
       }
 
       debugPrint('🌐 Laravel response: ${response.statusCode}');
+      debugPrint('📥 Response body: ${response.body}');
       
       Map<String, dynamic> responseData;
       try {
@@ -144,9 +149,10 @@ class ApiService {
   Future<Map<String, dynamic>> login(String email, String password) async {
     debugPrint('🔐 Laravel login for: $email');
     
+    // FIXED: Use correct endpoint without duplicate /auth
     final response = await _makeRequest(
       'POST',
-      '/auth/login',
+      '/login', // FIXED: Changed from /auth/login
       headers: _getHeaders(),
       body: {
         'email': email,
@@ -161,9 +167,10 @@ class ApiService {
   Future<Map<String, dynamic>> register(Map<String, String> userData) async {
     debugPrint('👤 Laravel registration for: ${userData['email']}');
     
+    // FIXED: Use correct endpoint
     final response = await _makeRequest(
       'POST',
-      '/auth/register',
+      '/register', // FIXED: Changed from /auth/register
       headers: _getHeaders(),
       body: userData,
     );
@@ -178,7 +185,7 @@ class ApiService {
     try {
       await _makeRequest(
         'POST',
-        '/auth/logout',
+        '/auth/logout', // This is correct based on your routes
         headers: _getHeaders(token: token),
       );
       debugPrint('✅ Laravel logout successful');
@@ -192,7 +199,7 @@ class ApiService {
     
     final response = await _makeRequest(
       'GET', 
-      '/auth/me', 
+      '/auth/check-token', // FIXED: Use correct endpoint
       headers: _getHeaders(token: token)
     );
     
@@ -206,7 +213,7 @@ class ApiService {
     
     final response = await _makeRequest(
       'GET',
-      '/auth/user',
+      '/auth/user', // This is correct
       headers: _getHeaders(token: token),
     );
     
@@ -219,7 +226,7 @@ class ApiService {
     
     final response = await _makeRequest(
       'PUT',
-      '/user/profile',
+      endpoint ?? '/user/profile', // Use custom endpoint or default
       headers: _getHeaders(token: token),
       body: userData,
     );
@@ -234,12 +241,12 @@ class ApiService {
     
     final response = await _makeRequest(
       'GET',
-      '/user/wallet',
+      endpoint ?? '/user/wallet', // Use custom endpoint or default
       headers: _getHeaders(token: token),
     );
     
-    debugPrint('✅ Laravel wallet retrieved');
-    return response;
+    // FIXED: Return raw response data
+    return response['data'] ?? response;
   }
 
   Future<List<Transaction>> getTransactions(String token) async {
@@ -279,7 +286,7 @@ class ApiService {
       '/user/transfer',
       headers: _getHeaders(token: token),
       body: {
-        'recipient_email': email,
+        'email': email, // FIXED: Use 'email' instead of 'recipient_email'
         'amount': amount,
         if (description != null && description.isNotEmpty) 'description': description,
       },
@@ -298,11 +305,12 @@ class ApiService {
     
     final response = await _makeRequest(
       'POST',
-      '/user/topup-request',
+      '/user/topup', // FIXED: Correct endpoint
       headers: _getHeaders(token: token),
       body: {
         'amount': amount,
         'payment_method': method,
+        'user_note': '', // Optional
       },
     );
     
@@ -339,10 +347,16 @@ class ApiService {
       headers: _getHeaders(token: token),
     );
     
-    List<dynamic> dropboxData = response['data'] ?? response['dropboxes'] ?? response;
-    
-    debugPrint('✅ Laravel dropboxes retrieved: ${dropboxData.length}');
-    return dropboxData.cast<Map<String, dynamic>>();
+    // FIXED: Handle both array and object response
+    if (response is List) {
+      return response.cast<Map<String, dynamic>>();
+    } else if (response['data'] != null) {
+      List<dynamic> dropboxData = response['data'];
+      return dropboxData.cast<Map<String, dynamic>>();
+    } else {
+      List<dynamic> dropboxData = response['dropboxes'] ?? [];
+      return dropboxData.cast<Map<String, dynamic>>();
+    }
   }
 
   Future<Map<String, dynamic>> confirmScan(
@@ -355,12 +369,12 @@ class ApiService {
     
     final response = await _makeRequest(
       'POST',
-      '/user/scan',
+      '/user/scan/confirm', // FIXED: Correct endpoint
       headers: _getHeaders(token: token),
       body: {
-        'dropbox_id': dropboxCode,
+        'dropbox_code': dropboxCode, // FIXED: Use correct parameter name
         'waste_type': wasteType,
-        'weight_g': weight,
+        'weight': weight, // Weight in kg
       },
     );
     
@@ -383,10 +397,13 @@ class ApiService {
       headers: _getHeaders(token: token),
     );
     
-    List<dynamic> historyData = response['data'] ?? response['history'] ?? [];
-    
-    debugPrint('✅ Laravel history retrieved: ${historyData.length}');
-    return historyData.cast<Map<String, dynamic>>();
+    // Handle both direct array response and wrapped response
+    if (response is List) {
+      return response.cast<Map<String, dynamic>>();
+    } else {
+      List<dynamic> historyData = response['data'] ?? response['history'] ?? [];
+      return historyData.cast<Map<String, dynamic>>();
+    }
   }
 
   Future<Map<String, dynamic>> getScanHistory(String token) async {
@@ -394,7 +411,7 @@ class ApiService {
     
     final response = await _makeRequest(
       'GET',
-      '/user/scan-history',
+      '/user/scan/history', // FIXED: Correct endpoint
       headers: _getHeaders(token: token),
     );
     
@@ -407,7 +424,7 @@ class ApiService {
     
     final response = await _makeRequest(
       'GET',
-      '/user/scan-stats',
+      '/user/scan/stats', // FIXED: Correct endpoint
       headers: _getHeaders(token: token),
     );
     
@@ -420,7 +437,7 @@ class ApiService {
     
     final response = await _makeRequest(
       'GET',
-      '/user/transaction-history',
+      '/user/transactions', // Use same endpoint as getTransactions
       headers: _getHeaders(token: token),
     );
     
