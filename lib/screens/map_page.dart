@@ -1,3 +1,4 @@
+// lib/screens/map_page.dart - FIXED: Without url_launcher dependency, with zoom controls
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -6,6 +7,7 @@ import 'package:ecocycle_app/models/dropbox.dart';
 import 'package:ecocycle_app/providers/auth_provider.dart';
 import 'package:ecocycle_app/services/api_service.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:flutter/services.dart'; // For copying coordinates
 
 class MapPage extends StatefulWidget {
   const MapPage({super.key});
@@ -83,12 +85,10 @@ class MapPageState extends State<MapPage> with TickerProviderStateMixin {
       }
 
       debugPrint('🔄 Fetching dropboxes...');
-      // FIXED: Get List<Map<String, dynamic>> directly from API
       final dropboxesData = await _apiService.getDropboxes(token);
       debugPrint('✅ Received ${dropboxesData.length} dropboxes');
       
       final dropboxes = <Dropbox>[];
-      // FIXED: Iterate over List directly
       for (var data in dropboxesData) {
         try {
           final dropbox = Dropbox.fromJson(data);
@@ -173,6 +173,24 @@ class MapPageState extends State<MapPage> with TickerProviderStateMixin {
         duration: Duration(seconds: isError ? 5 : 3),
       ),
     );
+  }
+
+  // ADDED: Zoom in function
+  Future<void> _zoomIn() async {
+    final GoogleMapController controller = await _controller.future;
+    final currentZoom = await controller.getZoomLevel();
+    if (currentZoom < 21) {
+      await controller.animateCamera(CameraUpdate.zoomTo(currentZoom + 1));
+    }
+  }
+
+  // ADDED: Zoom out function
+  Future<void> _zoomOut() async {
+    final GoogleMapController controller = await _controller.future;
+    final currentZoom = await controller.getZoomLevel();
+    if (currentZoom > 3) {
+      await controller.animateCamera(CameraUpdate.zoomTo(currentZoom - 1));
+    }
   }
 
   @override
@@ -380,7 +398,7 @@ class MapPageState extends State<MapPage> with TickerProviderStateMixin {
           }
         },
         markers: _markers,
-        zoomControlsEnabled: false,
+        zoomControlsEnabled: false, // We'll use custom zoom controls
         myLocationButtonEnabled: false,
         compassEnabled: false,
         mapToolbarEnabled: false,
@@ -393,10 +411,8 @@ class MapPageState extends State<MapPage> with TickerProviderStateMixin {
     );
   }
 
-  // FIXED: Better map style that shows roads and places clearly
   String? _getMapStyle() {
-    // Return null to use default Google Maps style with all roads visible
-    return null;
+    return null; // Use default Google Maps style
   }
 
   Future<void> _fitMapBounds(GoogleMapController controller) async {
@@ -431,24 +447,100 @@ class MapPageState extends State<MapPage> with TickerProviderStateMixin {
     );
   }
 
+  // UPDATED: Added zoom controls
   Widget _buildFloatingButtons() {
     return Positioned(
       bottom: 20,
       right: 20,
       child: Column(
         children: [
-          FloatingActionButton(
-            heroTag: "my_location",
-            onPressed: _goToMyLocation,
-            backgroundColor: const Color(0xFF4CAF50),
-            child: const Icon(Icons.my_location, color: Colors.white),
+          // Zoom In Button
+          Container(
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF4CAF50).withValues(alpha: 0.3),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: FloatingActionButton(
+              heroTag: "zoom_in",
+              onPressed: _zoomIn,
+              backgroundColor: const Color(0xFF4CAF50),
+              mini: true,
+              elevation: 0,
+              child: const Icon(Icons.add, color: Colors.white, size: 20),
+            ),
+          ),
+          const SizedBox(height: 8),
+          
+          // Zoom Out Button
+          Container(
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF4CAF50).withValues(alpha: 0.3),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: FloatingActionButton(
+              heroTag: "zoom_out",
+              onPressed: _zoomOut,
+              backgroundColor: const Color(0xFF4CAF50),
+              mini: true,
+              elevation: 0,
+              child: const Icon(Icons.remove, color: Colors.white, size: 20),
+            ),
           ),
           const SizedBox(height: 12),
-          FloatingActionButton(
-            heroTag: "refresh",
-            onPressed: _fetchDropboxes,
-            backgroundColor: const Color(0xFF2A2A2A),
-            child: const Icon(Icons.refresh, color: Colors.white),
+          
+          // My Location Button
+          Container(
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF4CAF50).withValues(alpha: 0.3),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: FloatingActionButton(
+              heroTag: "my_location",
+              onPressed: _goToMyLocation,
+              backgroundColor: const Color(0xFF4CAF50),
+              elevation: 0,
+              child: const Icon(Icons.my_location, color: Colors.white),
+            ),
+          ),
+          const SizedBox(height: 12),
+          
+          // Refresh Button
+          Container(
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.2),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: FloatingActionButton(
+              heroTag: "refresh",
+              onPressed: _fetchDropboxes,
+              backgroundColor: const Color(0xFF2A2A2A),
+              elevation: 0,
+              child: const Icon(Icons.refresh, color: Colors.white),
+            ),
           ),
         ],
       ),
@@ -598,7 +690,7 @@ class MapPageState extends State<MapPage> with TickerProviderStateMixin {
                   children: [
                     Expanded(
                       child: ElevatedButton.icon(
-                        onPressed: () => _navigateToDropbox(dropbox),
+                        onPressed: () => _showNavigationOptions(dropbox),
                         icon: const Icon(Icons.directions, size: 18),
                         label: const Text(
                           'Arah',
@@ -618,8 +710,10 @@ class MapPageState extends State<MapPage> with TickerProviderStateMixin {
                     Expanded(
                       child: OutlinedButton.icon(
                         onPressed: () {
-                          Navigator.pop(context);
-                          _centerMapOnDropbox(dropbox);
+                          if (mounted) {
+                            Navigator.pop(context);
+                            _centerMapOnDropbox(dropbox);
+                          }
                         },
                         icon: const Icon(Icons.center_focus_strong, size: 18),
                         label: const Text(
@@ -678,11 +772,15 @@ class MapPageState extends State<MapPage> with TickerProviderStateMixin {
         ),
       );
 
-      _showSnackBar('Lokasi Anda ditemukan');
+      if (mounted) {
+        _showSnackBar('Lokasi Anda ditemukan');
+      }
       debugPrint('✅ Moved to user location: ${position.latitude}, ${position.longitude}');
     } catch (e) {
       debugPrint('❌ Error getting location: $e');
-      _showSnackBar('Gagal mendapatkan lokasi: ${e.toString()}', isError: true);
+      if (mounted) {
+        _showSnackBar('Gagal mendapatkan lokasi: ${e.toString()}', isError: true);
+      }
     }
   }
 
@@ -703,8 +801,136 @@ class MapPageState extends State<MapPage> with TickerProviderStateMixin {
     }
   }
 
-  void _navigateToDropbox(Dropbox dropbox) {
-    _showSnackBar('Membuka navigasi ke ${dropbox.locationName}');
-    // Here you could integrate with external maps apps
+  // UPDATED: Show navigation options without url_launcher
+  void _showNavigationOptions(Dropbox dropbox) {
+    if (!mounted) return;
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF2A2A2A),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: const Color(0xFF4CAF50).withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(
+                Icons.navigation,
+                color: Color(0xFF4CAF50),
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'Navigasi ke ${dropbox.locationName}',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1A1A1A),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Koordinat Lokasi:',
+                    style: TextStyle(
+                      color: Colors.white70,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          '${dropbox.latitude}, ${dropbox.longitude}',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            fontFamily: 'monospace',
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () => _copyCoordinates(dropbox),
+                        icon: const Icon(
+                          Icons.copy,
+                          color: Color(0xFF4CAF50),
+                          size: 20,
+                        ),
+                        tooltip: 'Salin koordinat',
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Salin koordinat di atas dan buka di aplikasi peta favorit Anda seperti Google Maps, Waze, atau yang lainnya.',
+              style: TextStyle(
+                color: Colors.white70,
+                fontSize: 14,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              if (mounted) Navigator.pop(context);
+            },
+            child: const Text(
+              'Tutup',
+              style: TextStyle(color: Colors.grey),
+            ),
+          ),
+          ElevatedButton.icon(
+            onPressed: () => _copyCoordinates(dropbox),
+            icon: const Icon(Icons.copy, size: 16),
+            label: const Text('Salin Koordinat'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF4CAF50),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _copyCoordinates(Dropbox dropbox) async {
+    final coordinates = '${dropbox.latitude}, ${dropbox.longitude}';
+    await Clipboard.setData(ClipboardData(text: coordinates));
+    
+    if (mounted) {
+      Navigator.pop(context); // Close dialog
+      Navigator.pop(context); // Close bottom sheet
+      _showSnackBar('Koordinat berhasil disalin: $coordinates');
+    }
   }
 }
