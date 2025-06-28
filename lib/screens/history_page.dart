@@ -1,4 +1,4 @@
-// lib/screens/history_page.dart - DIPERBAIKI: Menggunakan metode getHistory tunggal
+// lib/screens/history_page.dart - DIPERBAIKI: Semua masalah history
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:ecocycle_app/providers/auth_provider.dart';
@@ -56,21 +56,60 @@ class _HistoryPageState extends State<HistoryPage> with TickerProviderStateMixin
       final token = Provider.of<AuthProvider>(context, listen: false).token;
       if (token == null) throw Exception('User not authenticated');
 
-      // Memuat semua jenis riwayat dari satu endpoint
+      // PERBAIKAN: Load history data dan transactions terpisah
       final allHistory = await _apiService.getHistory(token);
+      final transactions = await _apiService.getTransactions(token);
       
-      // Memfilter dan memproses data di sisi klien
-      final scans = allHistory.where((item) => item['activity_type'] == 'scan' || item['type'] == 'scan').toList();
-      final transactions = allHistory.where((item) => item['activity_type'] == 'transaction' || item['type'] != 'scan').toList();
+      // Filter scan history dari allHistory
+      final scans = allHistory.where((item) => 
+        item['activity_type'] == 'scan' || 
+        item['type'] == 'scan' ||
+        item['waste_type'] != null
+      ).toList();
+      
+      // PERBAIKAN: Gabungkan transactions dengan history untuk transaksi
+      final transactionList = <Map<String, dynamic>>[];
+      
+      // Tambahkan dari transactions API
+      for (var transaction in transactions) {
+        transactionList.add({
+          'id': transaction.id,
+          'type': transaction.type,
+          'amount_rp': transaction.amountRp,
+          'amount_coins': transaction.amountCoins,
+          'description': transaction.description,
+          'created_at': transaction.createdAt.toIso8601String(),
+          'type_label': transaction.typeDisplayName,
+        });
+      }
+      
+      // Tambahkan dari history yang bukan scan
+      final historyTransactions = allHistory.where((item) => 
+        item['activity_type'] != 'scan' && 
+        item['type'] != 'scan' &&
+        item['waste_type'] == null
+      ).toList();
+      
+      transactionList.addAll(historyTransactions);
+      
+      // Sort berdasarkan tanggal terbaru
+      transactionList.sort((a, b) {
+        final dateA = DateTime.tryParse(a['created_at'] ?? '') ?? DateTime.now();
+        final dateB = DateTime.tryParse(b['created_at'] ?? '') ?? DateTime.now();
+        return dateB.compareTo(dateA);
+      });
 
+      // Hitung statistik scan
       int totalScans = scans.length;
-      int totalCoinsEarned = scans.fold(0, (sum, item) => sum + ConversionUtils.toInt(item['coins_earned'] ?? 0));
-      double totalWasteWeight = scans.fold(0, (sum, item) => sum + ConversionUtils.toDouble(item['weight'] ?? 0));
+      int totalCoinsEarned = scans.fold(0, (sum, item) => 
+        sum + ConversionUtils.toInt(item['coins_earned'] ?? item['eco_coins'] ?? 0));
+      double totalWasteWeight = scans.fold(0.0, (sum, item) => 
+        sum + ConversionUtils.toDouble(item['weight'] ?? item['weight_g'] ?? 0));
 
       if (mounted) {
         setState(() {
           _scanHistory = scans;
-          _transactionHistory = transactions;
+          _transactionHistory = transactionList;
           _scanStats = {
             'total_scans': totalScans,
             'total_coins_earned': totalCoinsEarned,
@@ -81,7 +120,7 @@ class _HistoryPageState extends State<HistoryPage> with TickerProviderStateMixin
         _fadeController.forward(from: 0.0);
       }
     } catch (e) {
-      debugPrint('Error loading history: $e');
+      debugPrint('❌ Error loading history: $e');
       if (mounted) {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -94,7 +133,6 @@ class _HistoryPageState extends State<HistoryPage> with TickerProviderStateMixin
     }
   }
   
-  // ... (Sisa file UI build-nya tetap sama, tidak perlu diubah) ...
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -306,7 +344,6 @@ class _HistoryPageState extends State<HistoryPage> with TickerProviderStateMixin
   }
 
   Widget _buildScanHistoryCard(Map<String, dynamic> history) {
-    // ... UI tetap sama
     final isSuccess = (history['status'] ?? 'success') == 'success';
     final wasteType = history['waste_type'] ?? 'plastic';
     final weight = ConversionUtils.toDouble(history['weight'] ?? history['weight_g'] ?? 0);
@@ -412,15 +449,14 @@ class _HistoryPageState extends State<HistoryPage> with TickerProviderStateMixin
   }
   
   Widget _infoRow(IconData icon, String text) {
-      return Row(
-          children: [
-              Icon(icon, color: Colors.grey[400], size: 16),
-              const SizedBox(width: 8),
-              Expanded(child: Text(text, style: const TextStyle(color: Colors.white, fontSize: 14))),
-          ],
-      );
+    return Row(
+      children: [
+        Icon(icon, color: Colors.grey[400], size: 16),
+        const SizedBox(width: 8),
+        Expanded(child: Text(text, style: const TextStyle(color: Colors.white, fontSize: 14))),
+      ],
+    );
   }
-
 
   Widget _buildTransactionHistoryTab() {
     if (_transactionHistory.isEmpty) {
@@ -430,22 +466,42 @@ class _HistoryPageState extends State<HistoryPage> with TickerProviderStateMixin
         subtitle: 'Riwayat transaksi Anda akan muncul di sini',
       );
     }
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: _transactionHistory.length,
-      itemBuilder: (context, index) {
-        return _buildTransactionCard(_transactionHistory[index]);
-      },
+    
+    return RefreshIndicator(
+      onRefresh: _loadData,
+      color: const Color(0xFF4CAF50),
+      backgroundColor: const Color(0xFF2A2A2A),
+      child: ListView.builder(
+        padding: const EdgeInsets.all(16),
+        itemCount: _transactionHistory.length,
+        itemBuilder: (context, index) {
+          return _buildTransactionCard(_transactionHistory[index]);
+        },
+      ),
     );
   }
 
   Widget _buildTransactionCard(Map<String, dynamic> transaction) {
-    // ... UI tetap sama
     final type = transaction['type'] ?? '';
     final description = transaction['description'] ?? '';
     final amountRp = ConversionUtils.toDouble(transaction['amount_rp']);
     final amountCoins = ConversionUtils.toInt(transaction['amount_coins']);
-    final isIncome = amountRp > 0 || amountCoins > 0; // Simplified logic
+    
+    // PERBAIKAN: Logic untuk menentukan income/expense yang lebih akurat
+    bool isIncome = false;
+    if (type.toLowerCase().contains('in') || 
+        type.toLowerCase().contains('topup') || 
+        type.toLowerCase().contains('reward') ||
+        type.toLowerCase().contains('scan')) {
+      isIncome = true;
+    } else if (type.toLowerCase().contains('out') || 
+               type.toLowerCase().contains('transfer_out') ||
+               type.toLowerCase().contains('exchange')) {
+      isIncome = false;
+    } else if (amountRp > 0 || amountCoins > 0) {
+      isIncome = true;
+    }
+    
     final createdAt = DateTime.tryParse(transaction['created_at'] ?? '');
     final typeLabel = transaction['type_label'] ?? _getTypeDisplayName(type);
 
@@ -519,7 +575,7 @@ class _HistoryPageState extends State<HistoryPage> with TickerProviderStateMixin
               children: [
                 if (amountRp != 0)
                   Text(
-                    '${isIncome ? '+' : ''}${ConversionUtils.formatCurrency(amountRp.abs())}',
+                    '${isIncome ? '+' : '-'}${ConversionUtils.formatCurrency(amountRp.abs())}',
                     style: TextStyle(
                       color: isIncome ? Colors.green : Colors.red,
                       fontSize: 16,
@@ -618,17 +674,24 @@ class _HistoryPageState extends State<HistoryPage> with TickerProviderStateMixin
 
   String _getTypeDisplayName(String type) {
     const Map<String, String> typeNames = {
-      'topup': 'Top Up', 'coin_exchange_to_rp': 'Tukar Koin', 'scan_reward': 'Reward Scan',
-      'transfer_out': 'Transfer Keluar', 'transfer_in': 'Transfer Masuk',
+      'topup': 'Top Up', 
+      'coin_exchange_to_rp': 'Tukar Koin', 
+      'scan_reward': 'Reward Scan',
+      'transfer_out': 'Transfer Keluar', 
+      'transfer_in': 'Transfer Masuk',
+      'exchange_coins': 'Tukar Koin',
     };
     return typeNames[type] ?? type;
   }
 
   IconData _getTransactionIcon(String type) {
     const Map<String, IconData> icons = {
-      'topup': Icons.add_circle, 'coin_exchange_to_rp': Icons.swap_horiz,
-      'scan_reward': Icons.qr_code_scanner, 'transfer_out': Icons.arrow_upward,
+      'topup': Icons.add_circle, 
+      'coin_exchange_to_rp': Icons.swap_horiz,
+      'scan_reward': Icons.qr_code_scanner, 
+      'transfer_out': Icons.arrow_upward,
       'transfer_in': Icons.arrow_downward,
+      'exchange_coins': Icons.swap_horiz,
     };
     return icons[type] ?? Icons.circle;
   }

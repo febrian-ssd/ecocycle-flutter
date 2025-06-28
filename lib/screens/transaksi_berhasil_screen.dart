@@ -1,5 +1,6 @@
 // lib/screens/transaksi_berhasil_screen.dart - Enhanced Success Screen
 import 'package:flutter/material.dart';
+import 'package:ecocycle_app/utils/conversion_utils.dart'; // Import untuk formatCurrency
 
 class TransaksiBerhasilScreen extends StatefulWidget {
   final String title;
@@ -198,24 +199,14 @@ class _TransaksiBerhasilScreenState extends State<TransaksiBerhasilScreen>
                             ),
                           ],
                           if (widget.amount != null) ...[
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(
-                                  Icons.attach_money,
-                                  color: widget.color ?? const Color(0xFF4CAF50),
-                                  size: 24,
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  'Rp ${widget.amount!.toStringAsFixed(0)}',
-                                  style: TextStyle(
-                                    color: widget.color ?? const Color(0xFF4CAF50),
-                                    fontSize: 24,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ],
+                            // DIPERBAIKI: Hapus icon dolar dan gunakan formatCurrency dari ConversionUtils
+                            Text(
+                              ConversionUtils.formatCurrency(widget.amount!),
+                              style: TextStyle(
+                                color: widget.color ?? const Color(0xFF4CAF50),
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                           ],
                         ],

@@ -1,3 +1,4 @@
+// lib/models/transaction.dart - DIPERBAIKI: Support semua transaction types
 import 'package:ecocycle_app/utils/conversion_utils.dart';
 
 class Transaction {
@@ -40,11 +41,10 @@ class Transaction {
   }
 
   // Helper methods
-  String get formattedAmountRp => ConversionUtils.formatCurrency(amountRp);
+  String get formattedAmountRp => ConversionUtils.formatCurrency(amountRp.abs());
   
-  String get formattedAmountCoins => '${ConversionUtils.formatNumber(amountCoins)} coins';
+  String get formattedAmountCoins => '${ConversionUtils.formatNumber(amountCoins.abs())} coins';
   
-  // DIPERBAIKI: Menambahkan getter formattedDate yang hilang
   String get formattedDate {
     final now = DateTime.now();
     final difference = now.difference(createdAt);
@@ -66,30 +66,48 @@ class Transaction {
     }
   }
 
+  // PERBAIKAN: Support semua transaction types
   String get typeDisplayName {
-    switch (type.toLowerCase()) {
-      case 'transfer_in':
-        return 'Transfer Masuk';
-      case 'transfer_out':
-        return 'Transfer Keluar';
-      case 'exchange_coins':
-      case 'coin_exchange_to_rp':
-        return 'Tukar Koin';
-      case 'scan_reward':
-        return 'Reward Scan';
-      case 'topup':
-        return 'Top Up';
-      default:
-        return type;
-    }
+    const Map<String, String> typeMapping = {
+      'topup': 'Top Up',
+      'manual_topup': 'Top Up Manual',
+      'coin_exchange_to_rp': 'Tukar Koin',
+      'scan_reward': 'Reward Scan',
+      'transfer_out': 'Transfer Keluar',
+      'transfer_in': 'Transfer Masuk',
+      'exchange_coins': 'Tukar Koin',
+    };
+    
+    return typeMapping[type.toLowerCase()] ?? type;
   }
 
+  // PERBAIKAN: Logic income/expense yang lebih akurat
   bool get isIncome {
-    return ['transfer_in', 'scan_reward', 'topup', 'coin_exchange_to_rp'].contains(type.toLowerCase());
+    // Income transaction types
+    const incomeTypes = [
+      'topup',
+      'manual_topup', 
+      'scan_reward',
+      'transfer_in',
+      'coin_exchange_to_rp',
+    ];
+    
+    // Check by type first
+    if (incomeTypes.contains(type.toLowerCase())) return true;
+    
+    // Fallback: check by amount
+    if (amountRp > 0 || amountCoins > 0) return true;
+    
+    return false;
   }
 
   bool get isExpense {
-    return ['transfer_out'].contains(type.toLowerCase());
+    const expenseTypes = ['transfer_out', 'exchange_coins'];
+    
+    if (expenseTypes.contains(type.toLowerCase())) return true;
+    if (amountRp < 0 || amountCoins < 0) return true;
+    
+    return false;
   }
 
   @override

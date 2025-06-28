@@ -17,6 +17,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passwordController = TextEditingController();
   bool _isLoading = false;
   bool _obscurePassword = true;
+  String? _errorMessage; // Tambahkan untuk menyimpan error message
 
   @override
   void dispose() {
@@ -28,7 +29,10 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _login() async {
     if (!_formKey.currentState!.validate()) return;
 
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null; // Reset error message
+    });
 
     try {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
@@ -43,20 +47,97 @@ class _LoginScreenState extends State<LoginScreen> {
       }
     } catch (e) {
       if (mounted) {
+        String errorMessage = _parseErrorMessage(e.toString());
+        
+        setState(() {
+          _errorMessage = errorMessage;
+        });
+
+        // Tampilkan SnackBar dengan pesan error yang jelas
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Login gagal: ${e.toString()}'),
-            backgroundColor: Colors.red,
+            content: Row(
+              children: [
+                const Icon(Icons.error_outline, color: Colors.white),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    errorMessage,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.red[700],
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            duration: const Duration(seconds: 5),
+            action: SnackBarAction(
+              label: 'TUTUP',
+              textColor: Colors.white,
+              onPressed: () {
+                ScaffoldMessenger.of(context).hideCurrentSnackBar();
+              },
+            ),
           ),
         );
+
+        // Fokus ke field email jika kosong, atau password jika email sudah diisi
+        if (_emailController.text.trim().isEmpty) {
+          FocusScope.of(context).requestFocus(FocusNode());
+        } else {
+          _passwordController.clear();
+          FocusScope.of(context).requestFocus(FocusNode());
+        }
       }
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
       }
     }
+  }
+
+  // Helper method untuk parsing pesan error yang lebih user-friendly
+  String _parseErrorMessage(String error) {
+    // Hapus "Exception: " prefix
+    String cleanError = error.replaceFirst('Exception: ', '');
+    
+    // Map common error messages ke bahasa Indonesia yang user-friendly
+    final errorMappings = {
+      'These credentials do not match our records.': 'Email atau password yang Anda masukkan salah. Silakan periksa kembali.',
+      'The email field is required.': 'Email harus diisi.',
+      'The password field is required.': 'Password harus diisi.',
+      'Invalid email format.': 'Format email tidak valid.',
+      'User not found.': 'Akun dengan email tersebut tidak ditemukan.',
+      'Invalid credentials.': 'Email atau password salah. Periksa kembali data Anda.',
+      'Account is disabled.': 'Akun Anda telah dinonaktifkan. Hubungi administrator.',
+      'Too many login attempts.': 'Terlalu banyak percobaan login. Coba lagi nanti.',
+      'Network error': 'Tidak dapat terhubung ke server. Periksa koneksi internet Anda.',
+      'Server error': 'Terjadi kesalahan pada server. Coba lagi nanti.',
+      'Tidak dapat terhubung ke server': 'Tidak dapat terhubung ke server. Periksa koneksi internet Anda.',
+    };
+
+    // Cari mapping yang cocok
+    for (String key in errorMappings.keys) {
+      if (cleanError.toLowerCase().contains(key.toLowerCase())) {
+        return errorMappings[key]!;
+      }
+    }
+
+    // Jika tidak ada mapping yang cocok, gunakan pesan default yang user-friendly
+    if (cleanError.toLowerCase().contains('email') && cleanError.toLowerCase().contains('password')) {
+      return 'Email atau password yang Anda masukkan salah. Silakan periksa kembali.';
+    } else if (cleanError.toLowerCase().contains('network') || cleanError.toLowerCase().contains('connection')) {
+      return 'Tidak dapat terhubung ke server. Periksa koneksi internet Anda.';
+    } else if (cleanError.toLowerCase().contains('timeout')) {
+      return 'Koneksi timeout. Coba lagi nanti.';
+    }
+
+    // Fallback untuk error yang tidak dikenal
+    return 'Login gagal. Periksa email dan password Anda, lalu coba lagi.';
   }
 
   @override
@@ -135,6 +216,68 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 const SizedBox(height: 32),
 
+                // Error Message Display (jika ada)
+                if (_errorMessage != null) ...[
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(16),
+                    margin: const EdgeInsets.only(bottom: 20),
+                    decoration: BoxDecoration(
+                      color: Colors.red[50],
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.red[300]!),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.error_outline,
+                          color: Colors.red[700],
+                          size: 24,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Login Gagal',
+                                style: TextStyle(
+                                  color: Colors.red[800],
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                _errorMessage!,
+                                style: TextStyle(
+                                  color: Colors.red[700],
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () {
+                            setState(() {
+                              _errorMessage = null;
+                            });
+                          },
+                          icon: Icon(
+                            Icons.close,
+                            color: Colors.red[600],
+                            size: 20,
+                          ),
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+
                 // Email Field
                 TextFormField(
                   controller: _emailController,
@@ -156,6 +299,14 @@ class _LoginScreenState extends State<LoginScreen> {
                       borderRadius: BorderRadius.circular(12),
                       borderSide: const BorderSide(color: Color(0xFF4CAF50), width: 2),
                     ),
+                    errorBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Colors.red, width: 2),
+                    ),
+                    focusedErrorBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Colors.red, width: 2),
+                    ),
                     filled: true,
                     fillColor: const Color(0xFF2A2A2A),
                   ),
@@ -167,6 +318,14 @@ class _LoginScreenState extends State<LoginScreen> {
                       return 'Format email tidak valid';
                     }
                     return null;
+                  },
+                  onChanged: (value) {
+                    // Clear error message saat user mulai mengetik
+                    if (_errorMessage != null) {
+                      setState(() {
+                        _errorMessage = null;
+                      });
+                    }
                   },
                 ),
                 const SizedBox(height: 16),
@@ -203,6 +362,14 @@ class _LoginScreenState extends State<LoginScreen> {
                       borderRadius: BorderRadius.circular(12),
                       borderSide: const BorderSide(color: Color(0xFF4CAF50), width: 2),
                     ),
+                    errorBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Colors.red, width: 2),
+                    ),
+                    focusedErrorBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Colors.red, width: 2),
+                    ),
                     filled: true,
                     fillColor: const Color(0xFF2A2A2A),
                   ),
@@ -215,6 +382,14 @@ class _LoginScreenState extends State<LoginScreen> {
                     }
                     return null;
                   },
+                  onChanged: (value) {
+                    // Clear error message saat user mulai mengetik
+                    if (_errorMessage != null) {
+                      setState(() {
+                        _errorMessage = null;
+                      });
+                    }
+                  },
                 ),
                 const SizedBox(height: 8),
 
@@ -224,9 +399,20 @@ class _LoginScreenState extends State<LoginScreen> {
                   child: TextButton(
                     onPressed: () {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Fitur lupa password akan segera tersedia'),
-                          backgroundColor: Color(0xFF4CAF50),
+                        SnackBar(
+                          content: const Row(
+                            children: [
+                              Icon(Icons.info_outline, color: Colors.white),
+                              SizedBox(width: 12),
+                              Text(
+                                'Fitur lupa password akan segera tersedia',
+                                style: TextStyle(fontWeight: FontWeight.w600),
+                              ),
+                            ],
+                          ),
+                          backgroundColor: const Color(0xFF4CAF50),
+                          behavior: SnackBarBehavior.floating,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         ),
                       );
                     },

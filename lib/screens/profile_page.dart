@@ -1,12 +1,12 @@
-// lib/screens/profile_page.dart
+// lib/screens/profile_page.dart - DIPERBAIKI: Tambah navigasi ke personal info
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:ecocycle_app/providers/auth_provider.dart';
-// DIPERBAIKI: Menambahkan import untuk User model
 import 'package:ecocycle_app/models/user.dart'; 
 import 'package:ecocycle_app/screens/edit_profile_screen.dart';
 import 'package:ecocycle_app/screens/invite_friend_screen.dart';
 import 'package:ecocycle_app/screens/biography_screen.dart';
+import 'package:ecocycle_app/screens/personal_info_screen.dart'; // PERBAIKAN: Import yang hilang
 import 'package:ecocycle_app/utils/conversion_utils.dart';
 
 class ProfilePage extends StatefulWidget {
@@ -17,7 +17,6 @@ class ProfilePage extends StatefulWidget {
 }
 
 class _ProfilePageState extends State<ProfilePage> with TickerProviderStateMixin {
-  // DIPERBAIKI: Menghapus _apiService yang tidak digunakan
   late AnimationController _fadeController;
   late Animation<double> _fadeAnimation;
 
@@ -134,7 +133,6 @@ class _ProfilePageState extends State<ProfilePage> with TickerProviderStateMixin
                 const SizedBox(height: 40),
                 CircleAvatar(
                   radius: 50,
-                  // DIPERBAIKI: Mengganti withOpacity
                   backgroundColor: Colors.white.withAlpha((255 * 0.2).toInt()),
                   child: CircleAvatar(
                     radius: 46,
@@ -148,7 +146,6 @@ class _ProfilePageState extends State<ProfilePage> with TickerProviderStateMixin
                 const SizedBox(height: 16),
                 Text(userName, style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 4),
-                // DIPERBAIKI: Mengganti withOpacity
                 Text(userEmail, style: TextStyle(color: Colors.white.withAlpha((255 * 0.8).toInt()), fontSize: 14, fontWeight: FontWeight.w500)),
                 const SizedBox(height: 16),
                 ElevatedButton.icon(
@@ -159,7 +156,6 @@ class _ProfilePageState extends State<ProfilePage> with TickerProviderStateMixin
                   icon: const Icon(Icons.edit, size: 16),
                   label: const Text('Edit Profil', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
                   style: ElevatedButton.styleFrom(
-                    // DIPERBAIKI: Mengganti withOpacity
                     backgroundColor: Colors.white.withAlpha((255 * 0.2).toInt()),
                     foregroundColor: Colors.white,
                     elevation: 0,
@@ -226,7 +222,8 @@ class _ProfilePageState extends State<ProfilePage> with TickerProviderStateMixin
           icon: Icons.person,
           title: 'Informasi Pribadi',
           onTap: () {
-            // Navigator.push(context, MaterialPageRoute(builder: (context) => const PersonalInfoScreen()));
+            // PERBAIKAN: Tambahkan navigasi ke personal info
+            Navigator.push(context, MaterialPageRoute(builder: (context) => const PersonalInfoScreen()));
           },
         ),
         _buildMenuTile(
