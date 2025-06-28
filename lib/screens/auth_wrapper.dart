@@ -17,7 +17,10 @@ class _AuthWrapperState extends State<AuthWrapper> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      Provider.of<AuthProvider>(context, listen: false).initializeAuth();
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      if (!authProvider.isInitialized) {
+        authProvider.initializeAuth();
+      }
     });
   }
 
@@ -42,10 +45,10 @@ class _AuthWrapperState extends State<AuthWrapper> {
         }
 
         if (auth.isLoggedIn) {
-          debugPrint('✅ Pengguna terautentikasi, menampilkan HomeScreen');
+          debugPrint('✅ User authenticated, showing HomeScreen');
           return const HomeScreen();
         } else {
-          debugPrint('❌ Pengguna tidak terautentikasi, menampilkan LoginScreen');
+          debugPrint('❌ User not authenticated, showing LoginScreen');
           return const LoginScreen();
         }
       },

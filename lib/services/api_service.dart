@@ -1,4 +1,4 @@
-// lib/services/api_service.dart - COMPLETE UPDATE
+// lib/services/api_service.dart
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -7,7 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:ecocycle_app/models/transaction.dart';
 
 class ApiService {
-  static const String baseUrl = 'https://ecocylce.my.id/api'; // Keep as requested
+  static const String baseUrl = 'https://ecocylce.my.id/api';
   static const Duration timeoutDuration = Duration(seconds: 30);
 
   Map<String, String> _getHeaders({String? token}) {
@@ -23,19 +23,42 @@ class ApiService {
 
   Future<bool> testConnection() async {
     try {
+      debugPrint('🌐 Testing connection to: $baseUrl');
+      
       final response = await http.get(
         Uri.parse('$baseUrl/health'), 
         headers: _getHeaders()
-      ).timeout(const Duration(seconds: 5));
+      ).timeout(const Duration(seconds: 10));
+      
+      debugPrint('🌐 Connection test result: ${response.statusCode}');
       
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        return data['success'] == true;
+        try {
+          final data = jsonDecode(response.body);
+          return data['success'] == true;
+        } catch (e) {
+          debugPrint('🌐 Response not JSON, but connection OK');
+          return true;
+        }
       }
       return false;
     } catch (e) {
-      debugPrint('Connection test failed: $e');
-      return false;
+      debugPrint('❌ Connection test failed: $e');
+      
+      try {
+        final response = await http.post(
+          Uri.parse('$baseUrl/login'), 
+          headers: _getHeaders(),
+          body: jsonEncode({}),
+        ).timeout(const Duration(seconds: 5));
+        
+        // ✅ PERBAIKAN: Hapus null comparison yang tidak perlu
+        // return response.statusCode != null;
+        return response.statusCode >= 200 && response.statusCode < 500;
+      } catch (e2) {
+        debugPrint('❌ Fallback connection test failed: $e2');
+        return false;
+      }
     }
   }
 
@@ -74,19 +97,16 @@ class ApiService {
       final responseData = jsonDecode(response.body);
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
-        // Handle standardized response format
         if (responseData is Map<String, dynamic> && responseData.containsKey('success')) {
           return responseData;
         }
         
-        // Handle legacy format - wrap it
         return {
           'success': true,
           'data': responseData,
           'message': 'Success'
         };
       } else {
-        // Handle error response
         if (responseData is Map<String, dynamic>) {
           if (responseData.containsKey('message')) {
             throw Exception(responseData['message']);

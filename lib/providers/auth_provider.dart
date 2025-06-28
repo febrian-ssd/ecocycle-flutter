@@ -16,6 +16,7 @@ class AuthProvider extends ChangeNotifier {
   String? _errorMessage;
   bool _isConnected = true;
   bool _isRefreshing = false;
+  bool _hasInitialized = false;
   
   User? get user => _user;
   String? get token => _token;
@@ -58,24 +59,44 @@ class AuthProvider extends ChangeNotifier {
   }
 
   AuthProvider() {
-    initializeAuth();
+    _initializeOnce();
+  }
+  
+  Future<void> _initializeOnce() async {
+    if (_hasInitialized) {
+      debugPrint('⚠️ AuthProvider already initialized, skipping...');
+      return;
+    }
+    _hasInitialized = true;
+    await initializeAuth();
   }
 
   Future<void> initializeAuth() async {
     debugPrint('🔄 AuthProvider initializing...');
+    
+    if (_isInitialized) {
+      debugPrint('✅ Already initialized, skipping...');
+      return;
+    }
+    
     _isLoading = true;
     notifyListeners();
 
     try {
       _isConnected = await _apiService.testConnection();
+      debugPrint('🌐 Connection test: $_isConnected');
+      
       final prefs = await SharedPreferences.getInstance();
       final savedToken = prefs.getString('auth_token');
       
       if (savedToken != null) {
+        debugPrint('💾 Found saved token');
         _token = savedToken;
         if (_isConnected) {
           await _loadUserDataFromLaravel();
         }
+      } else {
+        debugPrint('🚫 No saved token');
       }
     } catch (e) {
       debugPrint('❌ Initialization error: $e');
@@ -83,6 +104,7 @@ class AuthProvider extends ChangeNotifier {
     } finally {
       _isInitialized = true;
       _isLoading = false;
+      debugPrint('✅ Auth initialization complete. Logged in: $isLoggedIn');
       notifyListeners();
     }
   }
@@ -102,8 +124,9 @@ class AuthProvider extends ChangeNotifier {
       final userResponse = await _apiService.getUser(_token!);
       _user = User.fromJson(userResponse['data'] ?? userResponse);
       await _loadWalletFromLaravel();
+      debugPrint('✅ User data loaded: ${_user?.name}');
     } catch (e) {
-      debugPrint('❌ Gagal memuat data user: $e');
+      debugPrint('❌ Failed to load user data: $e');
       if (e.toString().contains('401')) {
         await _clearLocalData();
       }
@@ -116,8 +139,9 @@ class AuthProvider extends ChangeNotifier {
     try {
       String endpoint = isAdmin ? '/admin/wallet-overview' : '/user/wallet';
       _wallet = await _apiService.getWallet(_token!, endpoint: endpoint);
+      debugPrint('✅ Wallet data loaded');
     } catch (e) {
-      debugPrint('❌ Gagal memuat wallet: $e');
+      debugPrint('❌ Failed to load wallet: $e');
       _wallet = null;
     }
   }
@@ -144,9 +168,12 @@ class AuthProvider extends ChangeNotifier {
       await _loadWalletFromLaravel();
       await _saveToLocalStorage();
       
+      debugPrint('✅ Login successful: ${_user?.name}');
+      
     } catch (e) {
       _errorMessage = e.toString().replaceFirst('Exception: ', '');
       await _clearLocalData();
+      debugPrint('❌ Login failed: $_errorMessage');
       rethrow;
     } finally {
       _setLoading(false);
@@ -169,6 +196,9 @@ class AuthProvider extends ChangeNotifier {
       _user = User.fromJson(data['user']);
       await _loadWalletFromLaravel();
       await _saveToLocalStorage();
+      
+      debugPrint('✅ Registration successful: ${_user?.name}');
+      
     } catch (e) {
       _errorMessage = e.toString().replaceFirst('Exception: ', '');
       await _clearLocalData();
@@ -184,11 +214,12 @@ class AuthProvider extends ChangeNotifier {
       try {
         await _apiService.logout(_token!);
       } catch (e) {
-        debugPrint('⚠️ Gagal logout dari server, lanjut logout lokal: $e');
+        debugPrint('⚠️ Logout from server failed, continuing local logout: $e');
       }
     }
     await _clearLocalData();
     _setLoading(false);
+    debugPrint('✅ Logout complete');
   }
   
   Future<void> refreshAllData() async {
@@ -232,7 +263,7 @@ class AuthProvider extends ChangeNotifier {
       final prefs = await SharedPreferences.getInstance();
       if (_token != null) await prefs.setString('auth_token', _token!);
     } catch (e) {
-      debugPrint('❌ Gagal menyimpan sesi: $e');
+      debugPrint('❌ Failed to save to local storage: $e');
     }
   }
 
@@ -244,7 +275,7 @@ class AuthProvider extends ChangeNotifier {
       _user = null;
       _wallet = null;
     } catch (e) {
-      debugPrint('❌ Gagal membersihkan sesi: $e');
+      debugPrint('❌ Failed to clear local data: $e');
     }
     notifyListeners();
   }

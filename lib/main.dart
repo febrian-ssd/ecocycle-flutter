@@ -14,14 +14,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
-      create: (ctx) {
-        final authProvider = AuthProvider();
-        // Initialize auth state when app starts
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          authProvider.initializeAuth();
-        });
-        return authProvider;
-      },
+      create: (ctx) => AuthProvider(),
       child: MaterialApp(
         title: 'Eco Cycle',
         theme: ThemeData(
