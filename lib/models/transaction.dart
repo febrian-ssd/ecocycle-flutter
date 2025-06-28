@@ -44,12 +44,16 @@ class Transaction {
   
   String get formattedAmountCoins => '${ConversionUtils.formatNumber(amountCoins)} coins';
   
+  // DIPERBAIKI: Menambahkan getter formattedDate yang hilang
   String get formattedDate {
     final now = DateTime.now();
     final difference = now.difference(createdAt);
     
     if (difference.inDays == 0) {
       if (difference.inHours == 0) {
+        if (difference.inMinutes == 0) {
+          return 'Baru saja';
+        }
         return '${difference.inMinutes} menit yang lalu';
       }
       return '${difference.inHours} jam yang lalu';
@@ -69,6 +73,7 @@ class Transaction {
       case 'transfer_out':
         return 'Transfer Keluar';
       case 'exchange_coins':
+      case 'coin_exchange_to_rp':
         return 'Tukar Koin';
       case 'scan_reward':
         return 'Reward Scan';
@@ -80,11 +85,11 @@ class Transaction {
   }
 
   bool get isIncome {
-    return ['transfer_in', 'scan_reward', 'topup'].contains(type.toLowerCase());
+    return ['transfer_in', 'scan_reward', 'topup', 'coin_exchange_to_rp'].contains(type.toLowerCase());
   }
 
   bool get isExpense {
-    return ['transfer_out', 'exchange_coins'].contains(type.toLowerCase());
+    return ['transfer_out'].contains(type.toLowerCase());
   }
 
   @override

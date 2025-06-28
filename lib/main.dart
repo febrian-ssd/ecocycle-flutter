@@ -1,4 +1,4 @@
-// lib/main.dart - FIXED AuthWrapper type assignment issue
+// lib/main.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:ecocycle_app/providers/auth_provider.dart';
@@ -31,7 +31,6 @@ class MyApp extends StatelessWidget {
           scaffoldBackgroundColor: const Color(0xFF121212),
         ),
         debugShowCheckedModeBanner: false,
-        // FIXED: Ensure AuthWrapper is properly typed as Widget
         home: const AuthWrapper(),
       ),
     );

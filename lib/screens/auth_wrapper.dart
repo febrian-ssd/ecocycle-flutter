@@ -1,4 +1,4 @@
-// lib/screens/auth_wrapper.dart - DISEDERHANAKAN
+// lib/screens/auth_wrapper.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:ecocycle_app/providers/auth_provider.dart';
@@ -16,7 +16,6 @@ class _AuthWrapperState extends State<AuthWrapper> {
   @override
   void initState() {
     super.initState();
-    // Memastikan status autentikasi diperiksa saat widget pertama kali dibuat
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Provider.of<AuthProvider>(context, listen: false).initializeAuth();
     });
@@ -26,7 +25,6 @@ class _AuthWrapperState extends State<AuthWrapper> {
   Widget build(BuildContext context) {
     return Consumer<AuthProvider>(
       builder: (context, auth, child) {
-        // Tampilkan layar loading saat status autentikasi sedang diperiksa
         if (auth.isLoading || !auth.isInitialized) {
           return const Scaffold(
             backgroundColor: Color(0xFF121212),
@@ -43,7 +41,6 @@ class _AuthWrapperState extends State<AuthWrapper> {
           );
         }
 
-        // Jika pengguna sudah login, tampilkan HomeScreen. Jika tidak, tampilkan LoginScreen.
         if (auth.isLoggedIn) {
           debugPrint('✅ Pengguna terautentikasi, menampilkan HomeScreen');
           return const HomeScreen();

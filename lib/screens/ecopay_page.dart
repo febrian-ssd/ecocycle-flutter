@@ -1,4 +1,4 @@
-// lib/screens/ecopay_page.dart - Desain Elegan dengan Navigasi yang Benar
+// lib/screens/ecopay_page.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:ecocycle_app/providers/auth_provider.dart';
@@ -58,7 +58,7 @@ class _EcoPayPageState extends State<EcoPayPage> with TickerProviderStateMixin {
 
     try {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      await authProvider.refreshAllData(); // Refresh data saldo dan koin dari provider
+      await authProvider.refreshAllData();
 
       final token = authProvider.token;
       if (token != null) {
@@ -161,7 +161,8 @@ class _EcoPayPageState extends State<EcoPayPage> with TickerProviderStateMixin {
           decoration: BoxDecoration(
             color: const Color(0xFF2A2A2A),
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: const Color(0xFF4CAF50).withOpacity(0.3)),
+            // DIPERBAIKI: Mengganti withOpacity
+            border: Border.all(color: const Color(0xFF4CAF50).withAlpha((255 * 0.3).toInt())),
           ),
           child: Column(
             children: [
@@ -256,7 +257,7 @@ class _EcoPayPageState extends State<EcoPayPage> with TickerProviderStateMixin {
             : ListView.builder(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
-                itemCount: _transactions.length,
+                itemCount: _transactions.length > 5 ? 5 : _transactions.length, // Tampilkan 5 transaksi terakhir
                 itemBuilder: (context, index) {
                   final transaction = _transactions[index];
                   final isIncome = transaction.isIncome;
@@ -275,6 +276,7 @@ class _EcoPayPageState extends State<EcoPayPage> with TickerProviderStateMixin {
                         style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
                       ),
                       subtitle: Text(
+                        // DIPERBAIKI: Memanggil formattedDate
                         transaction.description.isNotEmpty ? transaction.description : transaction.formattedDate,
                         style: const TextStyle(color: Colors.white70),
                       ),

@@ -1,4 +1,4 @@
-// lib/services/api_service.dart - LENGKAP & DIPERBAIKI
+// lib/services/api_service.dart
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';

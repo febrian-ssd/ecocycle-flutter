@@ -16,7 +16,6 @@ class Dropbox {
     return Dropbox(
       id: json['id'],
       locationName: json['location_name'],
-      // Pastikan tipe data di-parsing dengan benar
       latitude: double.parse(json['latitude'].toString()),
       longitude: double.parse(json['longitude'].toString()),
     );

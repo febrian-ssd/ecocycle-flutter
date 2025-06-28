@@ -1,4 +1,4 @@
-// lib/providers/auth_provider.dart - DIPERBAIKI: Menambahkan kembali properti wallet
+// lib/providers/auth_provider.dart
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:ecocycle_app/services/api_service.dart';
@@ -45,7 +45,6 @@ class AuthProvider extends ChangeNotifier {
     );
   }
 
-  // DIPERBAIKI: Menambahkan kembali properti yang hilang
   bool get hasWalletError => _wallet == null && isConnected;
   
   String getWalletStatusMessage() {
@@ -63,7 +62,6 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<void> initializeAuth() async {
-    // ... (Isi method tetap sama) ...
     debugPrint('🔄 AuthProvider initializing...');
     _isLoading = true;
     notifyListeners();
@@ -89,7 +87,6 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  // DIPERBAIKI: Menambahkan kembali method yang hilang
   Future<void> refreshWalletData() async {
     if (_token == null || !_isConnected) return;
     _isRefreshing = true;
@@ -100,7 +97,6 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<void> _loadUserDataFromLaravel() async {
-    // ... (Isi method tetap sama) ...
     if (_token == null || !_isConnected) return;
     try {
       final userResponse = await _apiService.getUser(_token!);
@@ -116,7 +112,6 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<void> _loadWalletFromLaravel() async {
-    // ... (Isi method tetap sama) ...
     if (_token == null || !_isConnected) return;
     try {
       String endpoint = isAdmin ? '/admin/wallet-overview' : '/user/wallet';
@@ -127,7 +122,6 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  // ... (Sisa file tetap sama) ...
   Future<void> login(String email, String password) async {
     _setLoading(true);
     _errorMessage = null;
@@ -183,7 +177,6 @@ class AuthProvider extends ChangeNotifier {
       _setLoading(false);
     }
   }
-
 
   Future<void> logout() async {
     _setLoading(true);

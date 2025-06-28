@@ -1,4 +1,4 @@
-// lib/screens/register_screen.dart - FIXED PARAMETER ISSUES
+// lib/screens/register_screen.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:ecocycle_app/providers/auth_provider.dart';
@@ -16,7 +16,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
-  
+
   bool _isLoading = false;
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
@@ -37,20 +37,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     try {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      
-      // FIXED: Create proper Map<String, String> for userData
+
       final userData = {
         'name': _nameController.text.trim(),
         'email': _emailController.text.trim(),
         'password': _passwordController.text,
         'password_confirmation': _confirmPasswordController.text,
       };
-      
-      // FIXED: Pass the Map instead of individual parameters
+
       await authProvider.register(userData);
-      
+
       if (mounted) {
-        // Registration successful, navigate back or to main app
         Navigator.of(context).pushReplacementNamed('/');
       }
     } catch (e) {
@@ -82,7 +79,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const SizedBox(height: 40),
-                
+
                 // Header
                 const Text(
                   'Daftar',
@@ -101,7 +98,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ),
                 ),
                 const SizedBox(height: 40),
-                
+
                 // Name Field
                 TextFormField(
                   controller: _nameController,
@@ -136,7 +133,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   },
                 ),
                 const SizedBox(height: 16),
-                
+
                 // Email Field
                 TextFormField(
                   controller: _emailController,
@@ -172,7 +169,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   },
                 ),
                 const SizedBox(height: 16),
-                
+
                 // Password Field
                 TextFormField(
                   controller: _passwordController,
@@ -219,7 +216,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   },
                 ),
                 const SizedBox(height: 16),
-                
+
                 // Confirm Password Field
                 TextFormField(
                   controller: _confirmPasswordController,
@@ -266,7 +263,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   },
                 ),
                 const SizedBox(height: 32),
-                
+
                 // Register Button
                 SizedBox(
                   width: double.infinity,
@@ -301,7 +298,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ),
                 ),
                 const SizedBox(height: 24),
-                
+
                 // Login Link
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -329,7 +326,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ],
                 ),
                 const SizedBox(height: 24),
-                
+
                 // Terms and Privacy
                 Text(
                   'Dengan mendaftar, Anda menyetujui Syarat & Ketentuan dan Kebijakan Privasi EcoCycle.',

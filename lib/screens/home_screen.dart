@@ -1,4 +1,4 @@
-// lib/screens/home_screen.dart - Desain Elegan dengan Navigasi Baru
+// lib/screens/home_screen.dart
 import 'package:flutter/material.dart';
 import 'package:ecocycle_app/screens/map_page.dart';
 import 'package:ecocycle_app/screens/ecopay_page.dart';
@@ -17,17 +17,21 @@ class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
   final PageController _pageController = PageController();
 
-  // Daftar halaman/screen untuk setiap tab
   final List<Widget> _pages = [
     const MapPage(),
     const EcoPayPage(),
-    const ScanScreen(),
+    const SizedBox.shrink(), // Placeholder for the middle button
     const HistoryPage(),
     const ProfilePage(),
   ];
 
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
   void _onItemTapped(int index) {
-    // Navigasi ke halaman scan saat tombol tengah ditekan
     if (index == 2) {
       Navigator.push(
         context,
@@ -35,20 +39,19 @@ class _HomeScreenState extends State<HomeScreen> {
       );
       return;
     }
+    
+    // Adjust index for PageView since ScanScreen is not in it
+    int pageIndex = index > 2 ? index - 1 : index;
+
     setState(() {
       _selectedIndex = index;
     });
+
     _pageController.animateToPage(
-      index,
+      pageIndex,
       duration: const Duration(milliseconds: 300),
       curve: Curves.easeInOut,
     );
-  }
-
-  @override
-  void dispose() {
-    _pageController.dispose();
-    super.dispose();
   }
 
   @override
@@ -58,11 +61,18 @@ class _HomeScreenState extends State<HomeScreen> {
       body: PageView(
         controller: _pageController,
         onPageChanged: (index) {
+          // Adjust index from PageView to match BottomNavBar
+          int selectedIndex = index >= 2 ? index + 1 : index;
           setState(() {
-            _selectedIndex = index;
+            _selectedIndex = selectedIndex;
           });
         },
-        children: _pages,
+        children: [
+          _pages[0],
+          _pages[1],
+          _pages[3],
+          _pages[4],
+        ],
       ),
       bottomNavigationBar: _buildBottomNavigationBar(),
       floatingActionButton: _buildFloatingActionButton(),
@@ -70,7 +80,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // Widget untuk Floating Action Button (Tombol Scan di tengah)
   Widget _buildFloatingActionButton() {
     return FloatingActionButton(
       onPressed: () => _onItemTapped(2),
@@ -81,7 +90,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // Widget untuk Bottom Navigation Bar
   Widget _buildBottomNavigationBar() {
     return BottomAppBar(
       color: const Color(0xFF1E1E1E),
@@ -100,7 +108,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // Widget untuk setiap item di Bottom Navigation Bar
   Widget _buildNavItem({required IconData icon, required String label, required int index}) {
     final bool isSelected = _selectedIndex == index;
     return IconButton(

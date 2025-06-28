@@ -1,4 +1,4 @@
-// lib/screens/login_screen.dart - FIXED VOID RESULT ISSUE
+// lib/screens/login_screen.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:ecocycle_app/providers/auth_provider.dart';
@@ -32,16 +32,13 @@ class _LoginScreenState extends State<LoginScreen> {
 
     try {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      
-      // FIXED: Don't try to use return value since login() returns void
+
       await authProvider.login(
         _emailController.text.trim(),
         _passwordController.text,
       );
-      
-      // Login successful - AuthProvider will handle navigation through state changes
+
       if (mounted) {
-        // Navigation will be handled by AuthWrapper based on authentication state
         debugPrint('✅ Login successful, AuthWrapper will handle navigation');
       }
     } catch (e) {
@@ -75,7 +72,7 @@ class _LoginScreenState extends State<LoginScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const SizedBox(height: 60),
-                
+
                 // App Logo/Title
                 Center(
                   child: Column(
@@ -118,7 +115,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
                 const SizedBox(height: 48),
-                
+
                 // Login Header
                 const Text(
                   'Masuk',
@@ -137,7 +134,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
                 const SizedBox(height: 32),
-                
+
                 // Email Field
                 TextFormField(
                   controller: _emailController,
@@ -173,7 +170,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   },
                 ),
                 const SizedBox(height: 16),
-                
+
                 // Password Field
                 TextFormField(
                   controller: _passwordController,
@@ -220,13 +217,12 @@ class _LoginScreenState extends State<LoginScreen> {
                   },
                 ),
                 const SizedBox(height: 8),
-                
+
                 // Forgot Password Link
                 Align(
                   alignment: Alignment.centerRight,
                   child: TextButton(
                     onPressed: () {
-                      // TODO: Implement forgot password
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
                           content: Text('Fitur lupa password akan segera tersedia'),
@@ -244,7 +240,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
                 const SizedBox(height: 24),
-                
+
                 // Login Button
                 SizedBox(
                   width: double.infinity,
@@ -279,7 +275,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
                 const SizedBox(height: 24),
-                
+
                 // Divider
                 Row(
                   children: [
@@ -308,7 +304,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ],
                 ),
                 const SizedBox(height: 24),
-                
+
                 // Register Link
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,

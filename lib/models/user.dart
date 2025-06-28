@@ -1,11 +1,11 @@
-// lib/models/user.dart - DIRUBAH: Logika role diubah ke isAdmin
+// lib/models/user.dart
 import 'package:ecocycle_app/utils/conversion_utils.dart';
 
 class User {
   final int id;
   final String name;
   final String email;
-  final bool isAdmin; // DIRUBAH: dari String role ke bool isAdmin
+  final bool isAdmin;
   final bool isActive;
   final double balanceRp;
   final int balanceCoins;
@@ -22,9 +22,7 @@ class User {
     this.createdAt,
   });
 
-  // Factory constructor untuk membuat User dari JSON
   factory User.fromJson(Map<String, dynamic> json) {
-    // DIRUBAH: Logika untuk menentukan isAdmin dibuat lebih kuat
     bool parseIsAdmin(Map<String, dynamic> jsonData) {
       if (jsonData['is_admin'] != null) {
         return jsonData['is_admin'] is bool
@@ -45,34 +43,18 @@ class User {
       isActive: json['is_active'] ?? json['active'] ?? true,
       balanceRp: ConversionUtils.toDouble(json['balance_rp'] ?? json['balance'] ?? 0),
       balanceCoins: ConversionUtils.toInt(json['balance_coins'] ?? json['coins'] ?? 0),
-      createdAt: json['created_at'] != null 
-          ? DateTime.tryParse(json['created_at']) 
+      createdAt: json['created_at'] != null
+          ? DateTime.tryParse(json['created_at'])
           : null,
     );
   }
 
-  // Helper methods untuk parsing
-  static double _parseDouble(dynamic value) {
-    if (value is double) return value;
-    if (value is int) return value.toDouble();
-    if (value is String) return double.tryParse(value) ?? 0.0;
-    return 0.0;
-  }
-
-  static int _parseInt(dynamic value) {
-    if (value is int) return value;
-    if (value is double) return value.toInt();
-    if (value is String) return int.tryParse(value) ?? 0;
-    return 0;
-  }
-
-  // Method untuk mengubah User menjadi JSON
   Map<String, dynamic> toJson() {
     return {
       'id': id,
       'name': name,
       'email': email,
-      'is_admin': isAdmin, // DIRUBAH: Menggunakan is_admin
+      'is_admin': isAdmin,
       'is_active': isActive,
       'balance_rp': balanceRp,
       'balance_coins': balanceCoins,
@@ -80,13 +62,12 @@ class User {
     };
   }
 
-  // DIRUBAH: Getter disesuaikan dengan properti isAdmin
   String get roleDisplay => isAdmin ? 'Administrator' : 'User';
   String get statusDisplay => isActive ? 'Active' : 'Inactive';
 
   String get formattedBalanceRp {
     return 'Rp ${balanceRp.toStringAsFixed(0).replaceAllMapped(
-      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), 
+      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
       (Match m) => '${m[1]}.'
     )}';
   }
@@ -99,70 +80,5 @@ class User {
       return words[0][0].toUpperCase();
     }
     return 'U';
-  }
-
-  // DIRUBAH: Logika perizinan disesuaikan dengan isAdmin
-  bool canAccessFeature(String feature) {
-    if (isAdmin) {
-      // Admin bisa akses semua fitur
-      return true;
-    } else {
-      // Perizinan untuk user biasa
-      switch (feature) {
-        case 'admin_panel':
-        case 'user_management':
-        case 'dropbox_management':
-        case 'approve_topups':
-        case 'system_stats':
-          return false;
-        case 'user_wallet':
-        case 'scan_qr':
-        case 'transfer_money':
-        case 'exchange_coins':
-        case 'request_topup':
-        default:
-          return true;
-      }
-    }
-  }
-
-  // DIRUBAH: Menu yang tersedia disesuaikan dengan isAdmin
-  List<String> getAvailableMenuItems() {
-    if (isAdmin) {
-      return [
-        'dashboard', 'users', 'dropboxes', 'topup_requests',
-        'transactions', 'history', 'system', 'profile',
-      ];
-    } else {
-      return ['home', 'wallet', 'scan', 'history', 'map', 'profile'];
-    }
-  }
-
-  // Copy with method untuk updating user data
-  User copyWith({
-    int? id,
-    String? name,
-    String? email,
-    bool? isAdmin,
-    bool? isActive,
-    double? balanceRp,
-    int? balanceCoins,
-    DateTime? createdAt,
-  }) {
-    return User(
-      id: id ?? this.id,
-      name: name ?? this.name,
-      email: email ?? this.email,
-      isAdmin: isAdmin ?? this.isAdmin,
-      isActive: isActive ?? this.isActive,
-      balanceRp: balanceRp ?? this.balanceRp,
-      balanceCoins: balanceCoins ?? this.balanceCoins,
-      createdAt: createdAt ?? this.createdAt,
-    );
-  }
-
-  @override
-  String toString() {
-    return 'User{id: $id, name: $name, email: $email, isAdmin: $isAdmin, isActive: $isActive}';
   }
 }

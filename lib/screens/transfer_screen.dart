@@ -1,12 +1,10 @@
-// lib/screens/transfer_screen.dart - COMPLETELY FIXED VERSION
+// lib/screens/transfer_screen.dart - DIPERBAIKI: Missing endpoint parameter
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:ecocycle_app/providers/auth_provider.dart';
 import 'package:ecocycle_app/services/api_service.dart';
 import 'package:ecocycle_app/utils/conversion_utils.dart';
 import 'package:ecocycle_app/screens/transaksi_berhasil_screen.dart';
-// FIXED: Unused import removed
-// import 'package:ecocycle_app/widgets/wallet_error_widget.dart';
 
 class TransferScreen extends StatefulWidget {
   const TransferScreen({super.key});
@@ -60,7 +58,8 @@ class _TransferScreenState extends State<TransferScreen> with TickerProviderStat
     try {
       final token = Provider.of<AuthProvider>(context, listen: false).token;
       if (token != null) {
-        final walletData = await _apiService.getWallet(token);
+        // DIPERBAIKI: Tambahkan parameter endpoint yang required
+        final walletData = await _apiService.getWallet(token, endpoint: '/user/wallet');
         setState(() {
           _currentBalance = ConversionUtils.toDouble(walletData['balance_rp']);
         });
@@ -214,16 +213,18 @@ class _TransferScreenState extends State<TransferScreen> with TickerProviderStat
       margin: const EdgeInsets.all(16),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.1),
+        // DIPERBAIKI: withOpacity -> withValues
+        color: Colors.white.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.2)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
       ),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
+              // DIPERBAIKI: withOpacity -> withValues
+              color: Colors.white.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(12),
             ),
             child: const Icon(
