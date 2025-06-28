@@ -1,24 +1,21 @@
-// lib/models/user.dart - Enhanced with Role Management
+// lib/models/user.dart - DIRUBAH: Logika role diubah ke isAdmin
+import 'package:ecocycle_app/utils/conversion_utils.dart';
 
 class User {
   final int id;
   final String name;
   final String email;
-  final String role;
+  final bool isAdmin; // DIRUBAH: dari String role ke bool isAdmin
   final bool isActive;
   final double balanceRp;
   final int balanceCoins;
   final DateTime? createdAt;
 
-  // Role constants
-  static const String ROLE_ADMIN = 'admin';
-  static const String ROLE_USER = 'user';
-
   User({
     required this.id,
     required this.name,
     required this.email,
-    required this.role,
+    required this.isAdmin,
     this.isActive = true,
     this.balanceRp = 0.0,
     this.balanceCoins = 0,
@@ -27,38 +24,45 @@ class User {
 
   // Factory constructor untuk membuat User dari JSON
   factory User.fromJson(Map<String, dynamic> json) {
+    // DIRUBAH: Logika untuk menentukan isAdmin dibuat lebih kuat
+    bool parseIsAdmin(Map<String, dynamic> jsonData) {
+      if (jsonData['is_admin'] != null) {
+        return jsonData['is_admin'] is bool
+            ? jsonData['is_admin']
+            : jsonData['is_admin'] == 1;
+      }
+      if (jsonData['role'] != null) {
+        return jsonData['role'] == 'admin';
+      }
+      return false;
+    }
+
     return User(
       id: json['id'] ?? 0,
       name: json['name'] ?? '',
       email: json['email'] ?? '',
-      role: json['role'] ?? ROLE_USER,
+      isAdmin: parseIsAdmin(json),
       isActive: json['is_active'] ?? json['active'] ?? true,
-      balanceRp: _parseDouble(json['balance_rp'] ?? json['balance'] ?? 0),
-      balanceCoins: _parseInt(json['balance_coins'] ?? json['coins'] ?? 0),
+      balanceRp: ConversionUtils.toDouble(json['balance_rp'] ?? json['balance'] ?? 0),
+      balanceCoins: ConversionUtils.toInt(json['balance_coins'] ?? json['coins'] ?? 0),
       createdAt: json['created_at'] != null 
           ? DateTime.tryParse(json['created_at']) 
           : null,
     );
   }
 
-  // Helper methods for parsing
+  // Helper methods untuk parsing
   static double _parseDouble(dynamic value) {
-    if (value == null) return 0.0;
     if (value is double) return value;
     if (value is int) return value.toDouble();
-    if (value is String) {
-      return double.tryParse(value) ?? 0.0;
-    }
+    if (value is String) return double.tryParse(value) ?? 0.0;
     return 0.0;
   }
 
   static int _parseInt(dynamic value) {
-    if (value == null) return 0;
     if (value is int) return value;
     if (value is double) return value.toInt();
-    if (value is String) {
-      return int.tryParse(value) ?? 0;
-    }
+    if (value is String) return int.tryParse(value) ?? 0;
     return 0;
   }
 
@@ -68,7 +72,7 @@ class User {
       'id': id,
       'name': name,
       'email': email,
-      'role': role,
+      'is_admin': isAdmin, // DIRUBAH: Menggunakan is_admin
       'is_active': isActive,
       'balance_rp': balanceRp,
       'balance_coins': balanceCoins,
@@ -76,26 +80,8 @@ class User {
     };
   }
 
-  // Role checking methods
-  bool get isAdmin => role == ROLE_ADMIN;
-  bool get isUser => role == ROLE_USER;
-  
-  bool hasRole(String checkRole) => role == checkRole;
-  
-  bool hasAnyRole(List<String> roles) => roles.contains(role);
-
-  // Display helpers
-  String get roleDisplay {
-    switch (role) {
-      case ROLE_ADMIN:
-        return 'Administrator';
-      case ROLE_USER:
-        return 'User';
-      default:
-        return 'Unknown';
-    }
-  }
-
+  // DIRUBAH: Getter disesuaikan dengan properti isAdmin
+  String get roleDisplay => isAdmin ? 'Administrator' : 'User';
   String get statusDisplay => isActive ? 'Active' : 'Inactive';
 
   String get formattedBalanceRp {
@@ -115,66 +101,49 @@ class User {
     return 'U';
   }
 
-  // Permission checking (can be extended based on your needs)
+  // DIRUBAH: Logika perizinan disesuaikan dengan isAdmin
   bool canAccessFeature(String feature) {
-    switch (feature) {
-      case 'admin_panel':
-        return isAdmin;
-      case 'user_management':
-        return isAdmin;
-      case 'dropbox_management':
-        return isAdmin;
-      case 'approve_topups':
-        return isAdmin;
-      case 'system_stats':
-        return isAdmin;
-      case 'user_wallet':
-        return isUser || isAdmin;
-      case 'scan_qr':
-        return isUser;
-      case 'transfer_money':
-        return isUser;
-      case 'exchange_coins':
-        return isUser;
-      case 'request_topup':
-        return isUser;
-      default:
-        return true; // Basic features available to all authenticated users
+    if (isAdmin) {
+      // Admin bisa akses semua fitur
+      return true;
+    } else {
+      // Perizinan untuk user biasa
+      switch (feature) {
+        case 'admin_panel':
+        case 'user_management':
+        case 'dropbox_management':
+        case 'approve_topups':
+        case 'system_stats':
+          return false;
+        case 'user_wallet':
+        case 'scan_qr':
+        case 'transfer_money':
+        case 'exchange_coins':
+        case 'request_topup':
+        default:
+          return true;
+      }
     }
   }
 
-  // Get available menu items based on role
+  // DIRUBAH: Menu yang tersedia disesuaikan dengan isAdmin
   List<String> getAvailableMenuItems() {
     if (isAdmin) {
       return [
-        'dashboard',
-        'users',
-        'dropboxes',
-        'topup_requests',
-        'transactions',
-        'history',
-        'system',
-        'profile',
+        'dashboard', 'users', 'dropboxes', 'topup_requests',
+        'transactions', 'history', 'system', 'profile',
       ];
-    } else if (isUser) {
-      return [
-        'home',
-        'wallet',
-        'scan',
-        'history',
-        'map',
-        'profile',
-      ];
+    } else {
+      return ['home', 'wallet', 'scan', 'history', 'map', 'profile'];
     }
-    return ['profile'];
   }
 
-  // Copy with method for updating user data
+  // Copy with method untuk updating user data
   User copyWith({
     int? id,
     String? name,
     String? email,
-    String? role,
+    bool? isAdmin,
     bool? isActive,
     double? balanceRp,
     int? balanceCoins,
@@ -184,7 +153,7 @@ class User {
       id: id ?? this.id,
       name: name ?? this.name,
       email: email ?? this.email,
-      role: role ?? this.role,
+      isAdmin: isAdmin ?? this.isAdmin,
       isActive: isActive ?? this.isActive,
       balanceRp: balanceRp ?? this.balanceRp,
       balanceCoins: balanceCoins ?? this.balanceCoins,
@@ -194,17 +163,6 @@ class User {
 
   @override
   String toString() {
-    return 'User{id: $id, name: $name, email: $email, role: $role, isActive: $isActive}';
+    return 'User{id: $id, name: $name, email: $email, isAdmin: $isAdmin, isActive: $isActive}';
   }
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is User &&
-          runtimeType == other.runtimeType &&
-          id == other.id &&
-          email == other.email;
-
-  @override
-  int get hashCode => id.hashCode ^ email.hashCode;
 }
